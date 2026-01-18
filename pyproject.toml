@@ -21,3 +21,17 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 dec-torch = { git = "https://github.com/timurci/DEC-torch.git" }
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+    "ruff>=0.14.13",
+    "ty>=0.0.12",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["COM812"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
