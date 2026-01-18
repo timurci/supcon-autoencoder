@@ -1,0 +1,23 @@
+[project]
+name = "supcon-autoencoder"
+version = "0.1.0"
+description = "Supervised Contrastive Learning (SupCon) in Autoencoder"
+readme = "README.md"
+authors = [
+    { name = "Timur Çakmakoğlu", email = "timurcakmakoglu@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "dec-torch",
+    "torch>=2.9.1",
+]
+
+[project.scripts]
+supcon-autoencoder = "supcon_autoencoder:main"
+
+[build-system]
+requires = ["uv_build>=0.9.17,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dec-torch = { git = "https://github.com/timurci/DEC-torch.git" }
