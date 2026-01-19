@@ -27,11 +27,11 @@ class ReconstructionLossProtocol(Protocol):
 class SupConLossProtocol(Protocol):
     """Protocol to lossly couple call signature of SupCon loss."""
 
-    def __call__(self, z: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def __call__(self, embeddings: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """Compute the SupCon loss.
 
         Args:
-            z: Embeddings (batch_size, embedding_dim). Assumed to be normalized.
+            embeddings: Embeddings (batch_size, latent_dim).
             labels: Labels (batch_size).
 
         Returns:
@@ -70,7 +70,7 @@ class HybridLoss(nn.Module):
 
     def forward(
         self,
-        z: torch.Tensor,
+        embeddings: torch.Tensor,
         labels: torch.Tensor,
         original_input: torch.Tensor,
         reconstructed_input: torch.Tensor,
@@ -78,7 +78,7 @@ class HybridLoss(nn.Module):
         """Compute the hybrid loss.
 
         Args:
-            z: Embeddings for SupCon loss.
+            embeddings: Embeddings for SupCon loss.
             labels: Labels for SupCon loss.
             original_input: Original input tensor.
             reconstructed_input: Reconstructed input tensor.
@@ -86,7 +86,7 @@ class HybridLoss(nn.Module):
         Returns:
             torch.Tensor: The hybrid loss value (scalar).
         """
-        sup_con = self.sup_con_loss(z, labels)
+        sup_con = self.sup_con_loss(embeddings, labels)
         recon = self.reconstruction_loss(original_input, reconstructed_input)
         return self.lambda_ * sup_con + (1 - self.lambda_) * recon
 
@@ -107,26 +107,26 @@ class SupConLoss(nn.Module):
         super().__init__()
         self.temperature = temperature
 
-    def forward(self, z: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def forward(self, embeddings: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """Compute the SupCon loss.
 
         Args:
-            z: Embeddings (batch_size, embedding_dim). Assumed to be normalized.
+            embeddings: Embeddings (batch_size, latent_dim).
             labels: Labels (batch_size).
 
         Returns:
             torch.Tensor: The loss value (scalar).
         """
         # Normalize embeddings to ensure cosine similarity
-        z = nn.functional.normalize(z, dim=1)
+        embeddings = nn.functional.normalize(embeddings, dim=1)
 
-        batch_size = z.shape[0]
+        batch_size = embeddings.shape[0]
 
         # Compute similarity matrix: z_i · z_j / τ
-        sim = z @ z.T / self.temperature  # [batch_size, batch_size]
+        sim = embeddings @ embeddings.T / self.temperature  # [batch_size, batch_size]
 
         # Mask self-similarities
-        mask = torch.eye(batch_size, dtype=torch.bool, device=z.device)
+        mask = torch.eye(batch_size, dtype=torch.bool, device=embeddings.device)
         sim = sim.masked_fill(mask, float("-inf"))
 
         # Positives mask: same label and not self
@@ -145,7 +145,9 @@ class SupConLoss(nn.Module):
         # Mask out anchors with no positives (or only self)
         valid = num_pos > 0
         if not valid.any():
-            return torch.tensor(1e-8, device=z.device, requires_grad=z.requires_grad)
+            return torch.tensor(
+                1e-8, device=embeddings.device, requires_grad=embeddings.requires_grad
+            )
 
         # Loss per anchor: - (1/|P(i)|) sum_p (sim[i,p] - den[i])
         loss_per_anchor = -(num_sims / num_pos) + den
