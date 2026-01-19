@@ -8,25 +8,22 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "dec-torch",
     "torch>=2.9.1",
 ]
-
-[project.scripts]
-supcon-autoencoder = "supcon_autoencoder:main"
 
 [build-system]
 requires = ["uv_build>=0.9.17,<0.10.0"]
 build-backend = "uv_build"
-
-[tool.uv.sources]
-dec-torch = { git = "https://github.com/timurci/DEC-torch.git" }
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.5.1",
     "ruff>=0.14.13",
     "ty>=0.0.12",
+]
+extra = [
+    "dec-torch",
+    "polars>=1.37.1",
 ]
 
 [tool.ruff.lint]
@@ -35,3 +32,6 @@ ignore = ["COM812"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.uv.sources]
+dec-torch = { git = "https://github.com/timurci/DEC-torch.git" }
