@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from supcon-autoencoder!")
+"""A package to integrate SupCon loss into Autoencoder architecture."""
