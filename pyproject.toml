@@ -3,6 +3,8 @@ name = "supcon-autoencoder"
 version = "0.1.0"
 description = "Supervised Contrastive Learning (SupCon) in Autoencoder"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
 authors = [
     { name = "Timur Çakmakoğlu", email = "timurcakmakoglu@gmail.com" }
 ]
