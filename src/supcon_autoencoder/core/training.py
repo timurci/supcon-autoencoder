@@ -1,10 +1,10 @@
 """Module for training loop implementation."""
 
 import logging
-from enum import Enum
 from typing import TYPE_CHECKING, NamedTuple
 
 import torch
+from fontTools.misc.enumTools import StrEnum
 
 from .model import Autoencoder
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TrainingPhase(Enum):
+class TrainingPhase(StrEnum):
     """Training phase enum.
 
     Used to distinguish between training and validation phases in the training loop.
