@@ -71,8 +71,8 @@ class Trainer:
         self.model.train()
         total_loss = 0.0
         for batch in loader:
-            inputs: torch.Tensor = batch["feature"].to(device)
-            labels: torch.Tensor = batch["label"].to(device)
+            inputs: torch.Tensor = batch["features"].to(device)
+            labels: torch.Tensor = batch["labels"].to(device)
             self.optimizer.zero_grad(set_to_none=True)
 
             embeddings: torch.Tensor = self.model.encoder(inputs)
@@ -105,8 +105,8 @@ class Trainer:
         total_loss = 0.0
         with torch.inference_mode():
             for batch in loader:
-                inputs: torch.Tensor = batch["feature"].to(device)
-                labels: torch.Tensor = batch["label"].to(device)
+                inputs: torch.Tensor = batch["features"].to(device)
+                labels: torch.Tensor = batch["labels"].to(device)
 
                 embeddings: torch.Tensor = self.model.encoder(inputs)
                 reconstructions: torch.Tensor = self.model.decoder(embeddings)
