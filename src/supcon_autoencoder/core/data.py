@@ -9,5 +9,5 @@ if TYPE_CHECKING:
 class Sample(TypedDict):
     """Dataset sample interface."""
 
-    feature: torch.Tensor
-    label: torch.Tensor
+    features: torch.Tensor
+    labels: torch.Tensor
