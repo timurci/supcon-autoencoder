@@ -1,0 +1,46 @@
+data:
+  training:  # required
+    batch_size: 64
+    shuffle: True
+    expression_file: "path/to/train_expression.parquet"
+    metadata_file: "path/to/metadata.parquet"
+    label_encoder_file: "./label_encoding.json"
+    id_column: "specimen_id"
+    label_column: "diagnosis"
+  validation:  # optional
+    batch_size: 64
+    shuffle: False
+    expression_file: "path/to/val_expression.parquet"
+    metadata_file: "path/to/metadata.parquet"
+    label_encoder_file: "./label_encoding.json"
+    id_column: "specimen_id"
+    label_column: "diagnosis"
+
+model:
+  # config.py fields
+  latent_dim: 20
+  hidden_dims: [1250, 500, 200]
+  input_dropout: 0.3
+  decoder_activation: "linear"
+  encoder_activation: "sigmoid"
+  hidden_activation: "relu"
+  # extra fields
+  model_output: "./model.pth"
+
+
+training_loop:
+  # config.py fields
+  num_epochs: 1000
+  logging_interval: 100
+  device: "cuda"
+  # extra fields
+  history_output: "./history.json" # optional
+
+optimizer:
+  learning_rate: 0.001
+
+loss:
+  supcon_temperature: 0.7
+  hybrid_lambda: 0.5
+
+

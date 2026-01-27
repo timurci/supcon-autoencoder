@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 if TYPE_CHECKING:
+    from examples.gene_expression.config import DataConfig
     from supcon_autoencoder.core.data import Sample
 
 
@@ -106,3 +107,17 @@ class LabeledGeneExpressionDataset(Dataset):
         """Move the features and labels to the specified device."""
         self.labels = self.labels.to(device)
         self.features = self.features.to(device)
+
+
+def create_dataloader(data_config: DataConfig) -> DataLoader[Sample]:
+    """Create a dataloader from a data config."""
+    dataset = LabeledGeneExpressionDataset(
+        expression_file=data_config.expression_file,
+        metadata_file=data_config.metadata_file,
+        id_column=data_config.id_column,
+        label_column=data_config.label_column,
+        label_encoder=LabelEncoder.from_json(data_config.label_encoder_file),
+    )
+    return DataLoader(
+        dataset, batch_size=data_config.batch_size, shuffle=data_config.shuffle
+    )
