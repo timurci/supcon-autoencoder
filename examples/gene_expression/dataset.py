@@ -1,6 +1,7 @@
 """Module for Gene Expression Dataset."""
 
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,9 @@ if TYPE_CHECKING:
     from supcon_autoencoder.core.data import Sample
 
     from .config import DataConfig
+
+
+logger = logging.getLogger(__name__)
 
 
 class LabelEncoder:
@@ -119,6 +123,9 @@ def create_dataloader(data_config: DataConfig) -> DataLoader[Sample]:
         label_column=data_config.label_column,
         label_encoder=LabelEncoder.from_json(data_config.label_encoder_file),
     )
+
+    logger.debug("Loaded dataset with %d samples.", len(dataset))
+
     return DataLoader(
         dataset, batch_size=data_config.batch_size, shuffle=data_config.shuffle
     )

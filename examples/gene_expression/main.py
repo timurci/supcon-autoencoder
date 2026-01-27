@@ -1,6 +1,7 @@
 """Training script for SupCon autoencoder on gene expression data."""
 
 import json
+import logging
 from pathlib import Path
 
 import torch
@@ -23,6 +24,8 @@ from .dataset import (
 )
 from .model import create_autoencoder
 
+logger = logging.getLogger(__name__)
+
 
 def build_parser() -> ArgumentParser:
     """Create argument parser."""
@@ -35,6 +38,9 @@ def build_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--history-output", required=False, help="Path to save the loss history."
+    )
+    parser.add_argument(
+        "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     return parser
 
@@ -73,6 +79,9 @@ def train(  # noqa: PLR0913
         validation_loader = create_dataloader(data_validation_config)
 
     input_dim = training_loader.dataset[0]["features"].shape[0]
+
+    logger.debug("Autoencoder input/output dimension: %d", input_dim)
+
     model = create_autoencoder(input_dim, model_config=model_config)
     model = model.to(training_loop_config.device)
 
@@ -106,6 +115,8 @@ if __name__ == "__main__":
 
     parser = build_parser()
     args = parser.parse_args()
+
+    logging.basicConfig(level=args.log_level)
 
     model_yaml = load_yaml(args.model_config)
     training_yaml = load_yaml(args.training_config)
