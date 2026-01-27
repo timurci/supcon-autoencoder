@@ -24,8 +24,6 @@ model:
   decoder_activation: "linear"
   encoder_activation: "sigmoid"
   hidden_activation: "relu"
-  # extra fields
-  model_output: "./model.pth"
 
 
 training_loop:
@@ -33,8 +31,6 @@ training_loop:
   num_epochs: 1000
   logging_interval: 100
   device: "cuda"
-  # extra fields
-  history_output: "./history.json" # optional
 
 optimizer:
   learning_rate: 0.001

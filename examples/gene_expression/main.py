@@ -30,7 +30,10 @@ def build_parser() -> ArgumentParser:
     parser.add_argument("--model-config", type=str, required=True)
     parser.add_argument("--training-config", type=str, required=True)
     parser.add_argument(
-        "--output", type=str, required=True, help="Path to save the trained model."
+        "--model-output", required=True, help="Path to save the trained model."
+    )
+    parser.add_argument(
+        "--history-output", required=False, help="Path to save the loss history."
     )
     return parser
 
@@ -107,10 +110,6 @@ if __name__ == "__main__":
     training_yaml = load_yaml(args.training_config)
     data_yaml = load_yaml(args.data_config)
 
-    # Output files
-    model_output: str = model_yaml["model"]["output"]
-    history_output: str | None = training_yaml["training_loop"].get("history_output")
-
     # Load configurations
     model_config = ModelConfig(**model_yaml["model"])
     optimizer_config = OptimizerConfig(**training_yaml["optimizer"])
@@ -132,10 +131,10 @@ if __name__ == "__main__":
     )
 
     if isinstance(model, AutoEncoder):
-        model.save(model_output)
+        model.save(args.model_output)
     else:
-        torch.save(model.state_dict(), model_output)
+        torch.save(model.state_dict(), args.model_output)
 
-    if history_output is not None:
-        with Path(history_output).open("w") as f:
+    if args.history_ouput is not None:
+        with Path(args.history_output).open("w") as f:
             json.dump(history, f)
