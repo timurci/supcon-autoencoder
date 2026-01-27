@@ -5,20 +5,20 @@ from pathlib import Path
 
 import torch
 import yaml
-from dec_torch.autoencoder import AutoEncoder
-from torch import nn
-
-from examples.gene_expression.config import (
+from config import (
     DataConfig,
     LossConfig,
     ModelConfig,
     OptimizerConfig,
     TrainingLoopConfig,
 )
-from examples.gene_expression.dataset import (
+from dataset import (
     create_dataloader,
 )
-from examples.gene_expression.model import create_autoencoder
+from dec_torch.autoencoder import AutoEncoder
+from model import create_autoencoder
+from torch import nn
+
 from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
 from supcon_autoencoder.core.training import EpochLoss, Trainer
 
@@ -135,6 +135,6 @@ if __name__ == "__main__":
     else:
         torch.save(model.state_dict(), args.model_output)
 
-    if args.history_ouput is not None:
+    if args.history_output is not None:
         with Path(args.history_output).open("w") as f:
-            json.dump(history, f)
+            json.dump([h._asdict() for h in history], f)

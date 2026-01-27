@@ -9,8 +9,9 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 if TYPE_CHECKING:
-    from examples.gene_expression.config import DataConfig
     from supcon_autoencoder.core.data import Sample
+
+    from .config import DataConfig
 
 
 class LabelEncoder:

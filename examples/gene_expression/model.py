@@ -7,7 +7,7 @@ from dec_torch.autoencoder import AutoEncoder, AutoEncoderConfig
 if TYPE_CHECKING:
     from torch import nn
 
-    from examples.gene_expression.config import ModelConfig
+    from .config import ModelConfig
 
 
 def create_autoencoder(input_dim: int, model_config: ModelConfig) -> nn.Module:

@@ -44,7 +44,6 @@ class DataConfig:
 class ModelConfig:
     """Configuration for the model."""
 
-    input_dim: int
     latent_dim: int
     hidden_dims: list[int] | None = None
     input_dropout: float = 0.3
