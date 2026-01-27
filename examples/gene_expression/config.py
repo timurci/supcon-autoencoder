@@ -32,12 +32,12 @@ class DataConfig:
     """Configuration for the data."""
 
     batch_size: int
-    shuffle: bool = False
     expression_file: str
     metadata_file: str
     label_encoder_file: str
     id_column: str
     label_column: str
+    shuffle: bool = False
 
 
 @dataclass(frozen=True)
