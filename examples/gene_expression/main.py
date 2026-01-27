@@ -5,22 +5,23 @@ from pathlib import Path
 
 import torch
 import yaml
-from config import (
+from dec_torch.autoencoder import AutoEncoder
+from torch import nn
+
+from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
+from supcon_autoencoder.core.training import EpochLoss, Trainer
+
+from .config import (
     DataConfig,
     LossConfig,
     ModelConfig,
     OptimizerConfig,
     TrainingLoopConfig,
 )
-from dataset import (
+from .dataset import (
     create_dataloader,
 )
-from dec_torch.autoencoder import AutoEncoder
-from model import create_autoencoder
-from torch import nn
-
-from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
-from supcon_autoencoder.core.training import EpochLoss, Trainer
+from .model import create_autoencoder
 
 
 def build_parser() -> ArgumentParser:

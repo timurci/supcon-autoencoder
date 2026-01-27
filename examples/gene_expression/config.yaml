@@ -4,7 +4,7 @@ data:
     shuffle: True
     expression_file: "path/to/train_expression.parquet"
     metadata_file: "path/to/metadata.parquet"
-    label_encoder_file: "./label_encoding.json"
+    label_encoder_file: "gene_expression/label_encoding.json"
     id_column: "specimen_id"
     label_column: "diagnosis"
   validation:  # optional
@@ -12,7 +12,7 @@ data:
     shuffle: False
     expression_file: "path/to/val_expression.parquet"
     metadata_file: "path/to/metadata.parquet"
-    label_encoder_file: "./label_encoding.json"
+    label_encoder_file: "gene_expression/label_encoding.json"
     id_column: "specimen_id"
     label_column: "diagnosis"
 
