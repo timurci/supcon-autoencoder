@@ -137,7 +137,7 @@ class SupConLoss(nn.Module):
         den = torch.logsumexp(sim, dim=1)  # [batch_size]
 
         # Numerator sum: sum_{p in P(i)} sim[i, p]
-        num_sims = (sim * pos_mask.float()).sum(dim=1)  # [batch_size]
+        num_sims = sim.masked_fill(~pos_mask, 0.0).sum(dim=1)  # [batch_size]
 
         # Number of positives per anchor
         num_pos = pos_mask.sum(dim=1)  # [batch_size]
