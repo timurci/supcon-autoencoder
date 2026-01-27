@@ -154,6 +154,9 @@ class Trainer:
                 )
             if epoch % logging_interval == 0:
                 logger.info(
-                    "Training loss %.4f, validation loss %.4f", train_loss, val_loss
+                    "Epoch %5d, training loss %.4f, validation loss %.4f",
+                    epoch,
+                    train_loss,
+                    val_loss,
                 )
         return history
