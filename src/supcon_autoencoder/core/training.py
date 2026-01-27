@@ -1,10 +1,10 @@
 """Module for training loop implementation."""
 
 import logging
+from enum import StrEnum
 from typing import TYPE_CHECKING, NamedTuple
 
 import torch
-from fontTools.misc.enumTools import StrEnum
 
 from .model import Autoencoder
 
