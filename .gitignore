@@ -12,3 +12,4 @@ uv.lock
 
 # Output files from examples
 *.parquet
+*.pth
