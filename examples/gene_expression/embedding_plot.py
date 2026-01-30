@@ -4,16 +4,23 @@ This module provides functions to load a trained autoencoder model and compute
 embeddings for gene expression datasets. The embeddings can then be visualized.
 """
 
+import logging
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
+import numpy as np  # noqa: TC002
+import seaborn as sns
 import torch
 from dec_torch.autoencoder import AutoEncoder
+from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
+from umap import UMAP
 
 from supcon_autoencoder.core.data import Sample
 
@@ -21,6 +28,8 @@ from .config import DataConfig
 from .dataset import LabeledGeneExpressionDataset, LabelEncoder
 
 if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+
     from supcon_autoencoder.core.model import Autoencoder
 
 BATCH_SIZE: int = 128
@@ -34,6 +43,19 @@ class ClusteringScores(TypedDict):
 
     nmi: float
     """Normalized Mutual Information score."""
+
+
+class Projections(TypedDict):
+    """2D projections of embeddings via different dimensionality reduction methods."""
+
+    pca: np.ndarray
+    """PCA projection, shape (n_samples, 2)."""
+
+    tsne: np.ndarray
+    """t-SNE projection, shape (n_samples, 2)."""
+
+    umap: np.ndarray
+    """UMAP projection, shape (n_samples, 2)."""
 
 
 class EmbeddingDataset(Dataset[Sample]):
@@ -197,6 +219,95 @@ def ground_truth_score(
     return ClusteringScores(ari=ari, nmi=nmi)
 
 
+def compute_projections(dataset: Dataset[Sample]) -> Projections:
+    """Compute 2D projections of embeddings using PCA, t-SNE, and UMAP.
+
+    Args:
+        dataset: Dataset containing embeddings to project.
+
+    Returns:
+        Projections containing PCA, t-SNE, and UMAP 2D projections.
+    """
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    embeddings_list = [batch["features"] for batch in dataloader]
+    embeddings = torch.cat(embeddings_list, dim=0).cpu().numpy()
+
+    # PCA projection
+    pca = PCA(n_components=2)
+    pca_proj = pca.fit_transform(embeddings)
+
+    # t-SNE projection
+    tsne = TSNE(n_components=2)
+    tsne_proj = tsne.fit_transform(embeddings)
+
+    # UMAP projection
+    umap = UMAP(n_components=2)
+    umap_proj = umap.fit_transform(embeddings)
+
+    return Projections(pca=pca_proj, tsne=tsne_proj, umap=umap_proj)
+
+
+def projection_plot(  # noqa: PLR0913
+    projections: Projections,
+    labels: np.ndarray,
+    training_scores: ClusteringScores,
+    validation_scores: ClusteringScores | None = None,
+    title: str = "2D Projections of the Embeddings",
+    figsize: tuple[int, int] = (18, 6),
+) -> Figure:
+    """Create a figure with three 2D projection plots.
+
+    Args:
+        projections: Projections containing PCA, t-SNE, and UMAP projections.
+        labels: Array of true labels for hue coloring.
+        training_scores: Clustering scores for training set.
+        validation_scores: Clustering scores for validation set (if available).
+        title: Main title for the figure. Defaults to
+            "2D Projections of the Embeddings".
+        figsize: Figure size as (width, height) in inches. Defaults to (18, 6).
+
+    Returns:
+        The Figure object containing the three projection subplots.
+    """
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+
+    methods = [
+        ("PCA", projections["pca"]),
+        ("t-SNE", projections["tsne"]),
+        ("UMAP", projections["umap"]),
+    ]
+
+    for ax, (method_name, proj) in zip(axes, methods, strict=True):
+        sns.scatterplot(
+            x=proj[:, 0],
+            y=proj[:, 1],
+            hue=labels,
+            ax=ax,
+            palette="tab10",
+            legend="full",
+            alpha=0.7,
+        )
+        ax.set_title(f"{method_name} Projection", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Component 1", fontsize=10)
+        ax.set_ylabel("Component 2", fontsize=10)
+        ax.grid(visible=True, linestyle="--", alpha=0.3)
+
+    # Build score text
+    score_text = (
+        f"Training ARI: {training_scores['ari']:.3f}, NMI: {training_scores['nmi']:.3f}"
+    )
+    if validation_scores is not None:
+        score_text += (
+            f" | Validation ARI: {validation_scores['ari']:.3f}, "
+            f"NMI: {validation_scores['nmi']:.3f}"
+        )
+
+    fig.suptitle(f"{title}\n{score_text}", fontsize=14, fontweight="bold", y=0.98)
+    plt.tight_layout()
+
+    return fig
+
+
 def build_parser() -> ArgumentParser:
     """Create argument parser for command-line usage.
 
@@ -237,6 +348,17 @@ def build_parser() -> ArgumentParser:
         default=None,
         help="Random seed for reproducible subset sampling. Defaults to None.",
     )
+    parser.add_argument(
+        "--projection-output",
+        type=str,
+        default=None,
+        help="Path to save the projection plot. Defaults to None (do not save).",
+    )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Display the projection plot interactively.",
+    )
     return parser
 
 
@@ -247,9 +369,17 @@ if __name__ == "__main__":
     parser = build_parser()
     args = parser.parse_args()
 
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
+
     # Set random seed
     if args.seed is not None:
         torch.manual_seed(args.seed)
+        logger.info("Random seed set to %d", args.seed)
 
     # Load data configuration
     with Path(args.data_config).open() as f:
@@ -287,28 +417,75 @@ if __name__ == "__main__":
     model = load_model(args.model_path, device)
 
     # Compute training embeddings
+    logger.info("Computing training embeddings...")
     training_embeddings = compute_embeddings(
         training_dataset,
         model.encoder,
         device,
         rand_subset_size=args.rand_subset_size,
     )
+    logger.info(
+        "Training embeddings computed: %d samples",
+        len(training_embeddings),  # type: ignore[arg-type]
+    )
 
     # Compute validation embeddings
     validation_embeddings = None
     if validation_dataset is not None:
+        logger.info("Computing validation embeddings...")
         validation_embeddings = compute_embeddings(
             validation_dataset,
             model.encoder,
             device,
             rand_subset_size=args.rand_subset_size,
         )
+        logger.info(
+            "Validation embeddings computed: %d samples",
+            len(validation_embeddings),  # type: ignore[arg-type]
+        )
 
     # Train k-means and evaluate clustering
     n_clusters = len(torch.unique(training_embeddings.labels))  # type: ignore[attr-defined]
+    logger.info("Fitting K-means model with %d clusters...", n_clusters)
     kmeans_model = train_kmeans(training_embeddings, n_clusters=n_clusters)
+    logger.info("K-means model fitted")
 
+    logger.info("Evaluating clustering performance...")
     training_scores = ground_truth_score(kmeans_model, training_embeddings)
+    logger.info(
+        "Training clustering scores - ARI: %.3f, NMI: %.3f",
+        training_scores["ari"],
+        training_scores["nmi"],
+    )
     validation_scores = None
     if validation_embeddings is not None:
         validation_scores = ground_truth_score(kmeans_model, validation_embeddings)
+        logger.info(
+            "Validation clustering scores - ARI: %.3f, NMI: %.3f",
+            validation_scores["ari"],
+            validation_scores["nmi"],
+        )
+
+    # Compute 2D projections (training only)
+    logger.info("Computing 2D projections (PCA, t-SNE, UMAP)...")
+    projections = compute_projections(training_embeddings)
+    logger.info("2D projections computed")
+    training_labels = training_embeddings.labels.cpu().numpy()  # type: ignore[attr-defined]
+
+    # Create projection plot
+    logger.info("Creating projection plot...")
+    fig = projection_plot(
+        projections,
+        training_labels,
+        training_scores,
+        validation_scores,
+    )
+    logger.info("Projection plot created")
+
+    # Save projection plot if output path provided
+    if args.projection_output is not None:
+        fig.savefig(args.projection_output, dpi=300, bbox_inches="tight")
+
+    # Show projection plot if requested
+    if args.show:
+        plt.show()
