@@ -142,20 +142,22 @@ class Trainer:
         for epoch in range(epochs):
             train_loss = self.train_epoch(train_loader, device)
             history.append(
-                EpochLoss(phase=TrainingPhase.TRAINING, epoch=epoch, loss=train_loss)
+                EpochLoss(
+                    phase=TrainingPhase.TRAINING, epoch=epoch + 1, loss=train_loss
+                )
             )
             val_loss = None
             if val_loader is not None:
                 val_loss = self.validate_epoch(val_loader, device)
                 history.append(
                     EpochLoss(
-                        phase=TrainingPhase.VALIDATION, epoch=epoch, loss=val_loss
+                        phase=TrainingPhase.VALIDATION, epoch=epoch + 1, loss=val_loss
                     )
                 )
             if epoch % logging_interval == 0:
                 logger.info(
                     "Epoch %5d, training loss %.4f, validation loss %.4f",
-                    epoch,
+                    epoch + 1,
                     train_loss,
                     val_loss,
                 )
