@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
-import numpy as np  # noqa: TC002
+import numpy as np
 import seaborn as sns
 import torch
 from dec_torch.autoencoder import AutoEncoder
@@ -33,6 +33,10 @@ if TYPE_CHECKING:
     from supcon_autoencoder.core.model import Autoencoder
 
 BATCH_SIZE: int = 128
+
+# Thresholds for embedding variance analysis
+EMBEDDING_VARIANCE_ZERO: float = 1e-6
+EMBEDDING_VARIANCE_LOW: float = 0.01
 
 
 class ClusteringScores(TypedDict):
@@ -308,6 +312,65 @@ def projection_plot(  # noqa: PLR0913
     return fig
 
 
+def analyze_embeddings(
+    dataset: Dataset[Sample],
+    dataset_name: str,
+    logger: logging.Logger,
+) -> None:
+    """Analyze embedding statistics and log warnings if suspicious patterns detected.
+
+    Args:
+        dataset: Embedding dataset to analyze.
+        dataset_name: Name of dataset for logging (e.g., "training", "validation").
+        logger: Logger instance for output.
+    """
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+    embeddings_list = [batch["features"] for batch in dataloader]
+    embeddings = torch.cat(embeddings_list, dim=0)
+
+    min_val = embeddings.min().item()
+    max_val = embeddings.max().item()
+    mean_val = embeddings.mean().item()
+    std_val = embeddings.std().item()
+    n_samples = len(embeddings)
+    embedding_dim = embeddings.shape[1]
+
+    logger.info(
+        "%s embeddings stats - samples: %d, dim: %d, "
+        "min: %.4f, max: %.4f, mean: %.4f, std: %.4f",
+        dataset_name,
+        n_samples,
+        embedding_dim,
+        min_val,
+        max_val,
+        mean_val,
+        std_val,
+    )
+
+    if std_val < EMBEDDING_VARIANCE_ZERO:
+        logger.warning(
+            "%s embeddings have near-zero variance (std=%.6f)! "
+            "Encoder may be untrained or collapsed.",
+            dataset_name,
+            std_val,
+        )
+    elif std_val < EMBEDDING_VARIANCE_LOW:
+        logger.warning(
+            "%s embeddings have very low variance (std=%.4f). "
+            "Consider checking model training.",
+            dataset_name,
+            std_val,
+        )
+
+    if torch.allclose(
+        embeddings, torch.zeros_like(embeddings), atol=EMBEDDING_VARIANCE_ZERO
+    ):
+        logger.error(
+            "%s embeddings are all zeros! Model is completely untrained.",
+            dataset_name,
+        )
+
+
 def build_parser() -> ArgumentParser:
     """Create argument parser for command-line usage.
 
@@ -428,6 +491,7 @@ if __name__ == "__main__":
         "Training embeddings computed: %d samples",
         len(training_embeddings),  # type: ignore[arg-type]
     )
+    analyze_embeddings(training_embeddings, "training", logger)
 
     # Compute validation embeddings
     validation_embeddings = None
@@ -443,6 +507,7 @@ if __name__ == "__main__":
             "Validation embeddings computed: %d samples",
             len(validation_embeddings),  # type: ignore[arg-type]
         )
+        analyze_embeddings(validation_embeddings, "validation", logger)
 
     # Train k-means and evaluate clustering
     n_clusters = len(torch.unique(training_embeddings.labels))  # type: ignore[attr-defined]
@@ -470,7 +535,14 @@ if __name__ == "__main__":
     logger.info("Computing 2D projections (PCA, t-SNE, UMAP)...")
     projections = compute_projections(training_embeddings)
     logger.info("2D projections computed")
-    training_labels = training_embeddings.labels.cpu().numpy()  # type: ignore[attr-defined]
+    training_labels_numeric = training_embeddings.labels.cpu().numpy()  # type: ignore[attr-defined]
+
+    # Convert numeric labels to string labels using label encoder
+    label_encoder = LabelEncoder.from_json(data_training_config.label_encoder_file)
+    label_map: dict[int, str] = label_encoder.__reversed__()
+    training_labels = np.array(
+        [label_map[int(label)] for label in training_labels_numeric]
+    )
 
     # Create projection plot
     logger.info("Creating projection plot...")
