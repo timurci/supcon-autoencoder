@@ -1,9 +1,9 @@
 """Training script for SupCon autoencoder on gene expression data."""
 
-import json
 import logging
 from pathlib import Path
 
+import polars as pl
 import torch
 import yaml
 from dec_torch.autoencoder import AutoEncoder
@@ -148,5 +148,11 @@ if __name__ == "__main__":
         torch.save(model.state_dict(), args.model_output)
 
     if args.history_output is not None:
-        with Path(args.history_output).open("w") as f:
-            json.dump([h._asdict() for h in history], f)
+        history_dict = [h._asdict() for h in history]
+        schema = {
+            "phase": pl.Enum(["training", "validation"]),
+            "epoch": pl.UInt32,
+            "loss": pl.Float32,
+        }
+        history_df = pl.DataFrame(history_dict, schema=schema)
+        history_df.write_parquet(args.history_output)

@@ -5,7 +5,7 @@ TRAINING_CONFIG := gene_expression/config.yaml
 OUTPUT_DIR := gene_expression/output
 
 MODEL_OUTPUT := $(OUTPUT_DIR)/model.pth
-HISTORY_OUTPUT := $(OUTPUT_DIR)/history.json
+HISTORY_OUTPUT := $(OUTPUT_DIR)/history.parquet
 
 LOG_LEVEL := INFO
 
