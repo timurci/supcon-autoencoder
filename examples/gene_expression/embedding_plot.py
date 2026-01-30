@@ -6,10 +6,12 @@ embeddings for gene expression datasets. The embeddings can then be visualized.
 
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import torch
 from dec_torch.autoencoder import AutoEncoder
+from sklearn.cluster import KMeans
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
@@ -22,6 +24,16 @@ if TYPE_CHECKING:
     from supcon_autoencoder.core.model import Autoencoder
 
 BATCH_SIZE: int = 128
+
+
+class ClusteringScores(TypedDict):
+    """Clustering evaluation scores against ground truth labels."""
+
+    ari: float
+    """Adjusted Rand Index score."""
+
+    nmi: float
+    """Normalized Mutual Information score."""
 
 
 class EmbeddingDataset(Dataset[Sample]):
@@ -127,6 +139,64 @@ def compute_embeddings(
     return EmbeddingDataset(embeddings, labels)
 
 
+def train_kmeans(
+    dataset: Dataset[Sample],
+    n_clusters: int,
+) -> KMeans:
+    """Train a k-means clustering model on the dataset embeddings.
+
+    Args:
+        dataset: Dataset containing embeddings to cluster.
+        n_clusters: Number of clusters to find.
+
+    Returns:
+        Trained KMeans model fitted on the dataset embeddings.
+    """
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    embeddings_list = [batch["features"] for batch in dataloader]
+
+    embeddings = torch.cat(embeddings_list, dim=0).cpu().numpy()
+
+    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans.fit(embeddings)
+
+    return kmeans
+
+
+def ground_truth_score(
+    kmeans_model: KMeans,
+    dataset: Dataset[Sample],
+) -> ClusteringScores:
+    """Compute clustering performance scores against ground truth labels.
+
+    Args:
+        kmeans_model: Trained KMeans model for prediction.
+        dataset: Dataset with embeddings and true labels.
+
+    Returns:
+        ClusteringScores containing ARI and NMI metrics.
+    """
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    embeddings_list: list[torch.Tensor] = []
+    labels_list: list[torch.Tensor] = []
+
+    for batch in dataloader:
+        embeddings_list.append(batch["features"])
+        labels_list.append(batch["labels"])
+
+    embeddings = torch.cat(embeddings_list, dim=0).cpu().numpy()
+    true_labels = torch.cat(labels_list, dim=0).cpu().numpy()
+
+    predicted_labels = kmeans_model.predict(embeddings)
+
+    ari = adjusted_rand_score(true_labels, predicted_labels)
+    nmi = normalized_mutual_info_score(true_labels, predicted_labels)
+
+    return ClusteringScores(ari=ari, nmi=nmi)
+
+
 def build_parser() -> ArgumentParser:
     """Create argument parser for command-line usage.
 
@@ -173,12 +243,15 @@ def build_parser() -> ArgumentParser:
 if __name__ == "__main__":
     import yaml
 
+    # Parse CLI arguments
     parser = build_parser()
     args = parser.parse_args()
 
+    # Set random seed
     if args.seed is not None:
         torch.manual_seed(args.seed)
 
+    # Load data configuration
     with Path(args.data_config).open() as f:
         data_yaml = yaml.safe_load(f)
 
@@ -187,6 +260,7 @@ if __name__ == "__main__":
     if data_yaml["data"]["validation"] is not None:
         data_validation_config = DataConfig(**data_yaml["data"]["validation"])
 
+    # Create training dataset
     training_dataset = LabeledGeneExpressionDataset(
         expression_file=data_training_config.expression_file,
         metadata_file=data_training_config.metadata_file,
@@ -195,6 +269,7 @@ if __name__ == "__main__":
         label_encoder=LabelEncoder.from_json(data_training_config.label_encoder_file),
     )
 
+    # Create validation dataset
     validation_dataset = None
     if data_validation_config is not None:
         validation_dataset = LabeledGeneExpressionDataset(
@@ -207,9 +282,11 @@ if __name__ == "__main__":
             ),
         )
 
+    # Load trained model
     device = torch.device(args.device)
     model = load_model(args.model_path, device)
 
+    # Compute training embeddings
     training_embeddings = compute_embeddings(
         training_dataset,
         model.encoder,
@@ -217,6 +294,7 @@ if __name__ == "__main__":
         rand_subset_size=args.rand_subset_size,
     )
 
+    # Compute validation embeddings
     validation_embeddings = None
     if validation_dataset is not None:
         validation_embeddings = compute_embeddings(
@@ -226,5 +304,11 @@ if __name__ == "__main__":
             rand_subset_size=args.rand_subset_size,
         )
 
-    # Embeddings are now computed and available for plotting
-    # training_embeddings and validation_embeddings are Dataset[Sample] instances
+    # Train k-means and evaluate clustering
+    n_clusters = len(torch.unique(training_embeddings.labels))  # type: ignore[attr-defined]
+    kmeans_model = train_kmeans(training_embeddings, n_clusters=n_clusters)
+
+    training_scores = ground_truth_score(kmeans_model, training_embeddings)
+    validation_scores = None
+    if validation_embeddings is not None:
+        validation_scores = ground_truth_score(kmeans_model, validation_embeddings)
