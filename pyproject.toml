@@ -42,6 +42,8 @@ convention = "google"
 "**/tests/**" = [
     "ANN201",  # require return type annotations
     "S101",  # prevent usage of assert
+    "SLF001",  # private member accessed (testing internal methods)
+    "PLR2004",  # magic value used in comparison (acceptable in tests)
 ]
 
 [tool.uv.sources]
