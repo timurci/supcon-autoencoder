@@ -1,0 +1,42 @@
+# See implementation in `config.py` & `main.py` for details
+
+data:
+  training: # required
+    batch_size: 128
+    shuffle: True
+    expression_file: "/path/to/gene_expression.training.parquet"
+    metadata_file: "/path/to/metadata.parquet"
+    label_encoder_file: "gene_expression/label_encoding.json"
+    id_column: "specimen_id"
+    label_column: "diagnosis"
+  validation: # optional
+    batch_size: 128
+    shuffle: False
+    expression_file: "/path/to/gene_expression.validation.parquet"
+    metadata_file: "/path/to/metadata.parquet"
+    label_encoder_file: "gene_expression/label_encoding.json"
+    id_column: "specimen_id"
+    label_column: "diagnosis"
+
+model:
+  # Model parameters for AutoEncoder class from dec-torch package.
+  latent_dim: 50
+  hidden_dims: [1000, 500] # encoder hidden dimensions, mirrored in decoder.
+  input_dropout: 0.2
+  decoder_activation: "linear" # decoder output activation
+  encoder_activation: "tanh" # encoder output activation
+  hidden_activation: "relu" # hidden layer activation
+
+training_loop:
+  num_epochs: 1000
+  logging_interval: 100
+  device: "cuda"
+
+optimizer:
+  # AdamW
+  learning_rate: 0.01
+
+loss:
+  # Hybrid loss: (lambda) * supcon_loss + (1-lambda) * reconstruction_loss
+  supcon_temperature: 0.5
+  hybrid_lambda: 0.0
