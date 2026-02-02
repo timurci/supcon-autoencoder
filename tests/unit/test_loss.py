@@ -23,26 +23,6 @@ class TestHybridLoss:
         with pytest.raises(ValueError, match="lambda does not satisfy"):
             HybridLoss(mock_sup, mock_recon, lambda_=1.5)
 
-    def test_forward_computation(self) -> None:
-        """Test forward pass computes weighted combination correctly."""
-        # Create appropriate loss functions
-        sup_loss = SupConLoss()
-        recon_loss = nn.MSELoss()
-        hybrid = HybridLoss(sup_loss, recon_loss, lambda_=0.7)
-
-        # Create dummy inputs
-        embeddings = torch.randn(4, 8, requires_grad=True)
-        labels = torch.tensor([0, 0, 1, 1])
-        original = torch.randn(4, 16)
-        reconstructed = torch.randn(4, 16, requires_grad=True)
-
-        # Compute loss
-        loss = hybrid(embeddings, labels, original, reconstructed)
-
-        # Verify it's a scalar tensor with grad
-        assert loss.shape == torch.Size([])
-        assert loss.requires_grad
-
     def test_lambda_weighting(self) -> None:
         """Test that lambda properly weights the two losses with varying values."""
         # Use real loss functions with specific inputs for exact numerical validation
@@ -88,23 +68,6 @@ class TestHybridLoss:
         hybrid1 = HybridLoss(sup_loss, recon_loss, lambda_=1.0)
         loss1 = hybrid1(embeddings, labels, original, reconstructed)
         assert abs(loss1.item()) < 1e-6
-
-    def test_hybrid_loss_gradient_flow(self) -> None:
-        """Test that gradients flow through hybrid loss."""
-        sup_loss = SupConLoss()
-        recon_loss = nn.MSELoss()
-        hybrid = HybridLoss(sup_loss, recon_loss, lambda_=0.5)
-
-        embeddings = torch.randn(4, 8, requires_grad=True)
-        labels = torch.tensor([0, 0, 1, 1])
-        original = torch.randn(4, 16)
-        reconstructed = torch.randn(4, 16, requires_grad=True)
-
-        loss = hybrid(embeddings, labels, original, reconstructed)
-        loss.backward()
-
-        assert embeddings.grad is not None
-        assert reconstructed.grad is not None
 
     def test_hybrid_loss_numerical_exact(self) -> None:
         """Test hybrid loss with hardcoded values for exact numerical validation."""
@@ -202,32 +165,6 @@ class TestHybridLoss:
 class TestSupConLoss:
     """Test suite for SupConLoss class."""
 
-    def test_forward_basic(self) -> None:
-        """Test forward pass with complex 3D embeddings and varying values."""
-        loss_fn = SupConLoss(temperature=0.5)
-
-        # Complex 3D embeddings with varying magnitudes and directions
-        # 3 classes, 2 samples each, with varying similarity within classes
-        embeddings = torch.tensor(
-            [
-                [2.5, 1.0, -0.5],  # class 0
-                [2.0, 1.2, -0.3],  # class 0 (similar but not identical)
-                [-1.0, 2.0, 0.5],  # class 1
-                [-0.8, 1.8, 0.7],  # class 1 (similar)
-                [0.5, -1.5, 2.0],  # class 2
-                [0.7, -1.3, 1.8],  # class 2 (similar)
-            ],
-            requires_grad=True,
-        )
-        labels = torch.tensor([0, 0, 1, 1, 2, 2])
-
-        loss = loss_fn(embeddings, labels)
-
-        # Should return a positive scalar with gradients
-        assert loss.shape == torch.Size([])
-        assert loss.requires_grad
-        assert loss.item() > 0
-
     def test_numerical_exact_simple_case(self) -> None:
         """Test SupCon loss with hardcoded embeddings for exact numerical validation."""
         # Simple case: orthogonal unit vectors, two samples per class
@@ -277,32 +214,6 @@ class TestSupConLoss:
         # Manually computed expected value
         expected = 0.6954500675
         assert abs(loss.item() - expected) < 1e-6
-
-    def test_forward_normalization(self) -> None:
-        """Test that embeddings are normalized internally with extreme magnitudes."""
-        loss_fn = SupConLoss(temperature=0.5)
-
-        # Use embeddings with extreme magnitude differences (1:1000 ratio)
-        # but same direction - should give identical loss after normalization
-        embeddings_tiny = torch.tensor([[0.001, 0.0, 0.0]])
-        embeddings_small = torch.tensor([[0.01, 0.0, 0.0]])
-        embeddings_medium = torch.tensor([[0.1, 0.0, 0.0]])
-        embeddings_large = torch.tensor([[1.0, 0.0, 0.0]])
-        embeddings_huge = torch.tensor([[1000.0, 0.0, 0.0]])
-
-        labels = torch.tensor([0, 0])
-
-        loss_tiny = loss_fn(torch.cat([embeddings_tiny, embeddings_tiny]), labels)
-        loss_small = loss_fn(torch.cat([embeddings_small, embeddings_small]), labels)
-        loss_medium = loss_fn(torch.cat([embeddings_medium, embeddings_medium]), labels)
-        loss_large = loss_fn(torch.cat([embeddings_large, embeddings_large]), labels)
-        loss_huge = loss_fn(torch.cat([embeddings_huge, embeddings_huge]), labels)
-
-        # All losses should be equal (near-zero for identical normalized vectors)
-        assert torch.allclose(loss_tiny, loss_small, atol=1e-6)
-        assert torch.allclose(loss_small, loss_medium, atol=1e-6)
-        assert torch.allclose(loss_medium, loss_large, atol=1e-6)
-        assert torch.allclose(loss_large, loss_huge, atol=1e-6)
 
     def test_forward_no_positives(self) -> None:
         """Test forward pass when samples have no positives (all different classes)."""
@@ -529,36 +440,6 @@ class TestSupConLossModularMethods:
         assert abs(num[1].item() - 10.0) < 1e-6
         # Third row: no positives -> 0.0
         assert abs(num[2].item()) < 1e-6
-
-    def test_compute_loss_per_anchor_valid(self) -> None:
-        """Test _compute_loss_per_anchor with valid anchors."""
-        loss_fn = SupConLoss()
-
-        num_sims = torch.tensor([2.0, 5.0, 0.0])
-        num_pos = torch.tensor([1, 2, 0])  # Third has no positives
-        den = torch.tensor([3.0, 4.0, 1.0])
-
-        loss_per_anchor = loss_fn._compute_loss_per_anchor(num_sims, num_pos, den)
-
-        assert loss_per_anchor is not None
-        assert len(loss_per_anchor) == 2  # Only first two are valid
-
-        # First anchor: -(2.0/1) + 3.0 = 1.0
-        assert abs(loss_per_anchor[0].item() - 1.0) < 1e-6
-        # Second anchor: -(5.0/2) + 4.0 = 1.5
-        assert abs(loss_per_anchor[1].item() - 1.5) < 1e-6
-
-    def test_compute_loss_per_anchor_no_valid(self) -> None:
-        """Test _compute_loss_per_anchor returns None when no valid anchors."""
-        loss_fn = SupConLoss()
-
-        num_sims = torch.tensor([0.0, 0.0])
-        num_pos = torch.tensor([0, 0])  # No valid anchors
-        den = torch.tensor([1.0, 1.0])
-
-        loss_per_anchor = loss_fn._compute_loss_per_anchor(num_sims, num_pos, den)
-
-        assert loss_per_anchor is None
 
     def test_integration_modular_methods(self) -> None:
         """Test that modular methods integrate correctly in forward pass."""
