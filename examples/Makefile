@@ -1,65 +1,92 @@
-DATA_CONFIG := gene_expression/config.yaml
-MODEL_CONFIG := gene_expression/config.yaml
-TRAINING_CONFIG := gene_expression/config.yaml
+# Gene expression example parameters
+GENE_EXPRESSION_OUTPUT_DIR := gene_expression/output
+GENE_EXPRESSION_DATA_CONFIG := gene_expression/config.yaml
+GENE_EXPRESSION_MODEL_CONFIG := gene_expression/config.yaml
+GENE_EXPRESSION_TRAINING_CONFIG := gene_expression/config.yaml
 
-OUTPUT_DIR := gene_expression/output
-
-MODEL_OUTPUT := $(OUTPUT_DIR)/model.pth
-HISTORY_OUTPUT := $(OUTPUT_DIR)/history.parquet
-
-LOG_LEVEL := INFO
+# Fashion MNIST example parameters
+FASHION_MNIST_OUTPUT_DIR := fashion_mnist/output
 
 # Loss history plot parameters
-LOSS_PLOT_INPUT := $(HISTORY_OUTPUT)
-LOSS_PLOT_OUTPUT := $(OUTPUT_DIR)/loss_history.png
-LOSS_PLOT_OFFSET := 0
 LOSS_PLOT_TITLE := "Training and Validation Loss"
+LOSS_PLOT_OFFSET := 0
 LOSS_PLOT_WIDTH := 10
 LOSS_PLOT_HEIGHT := 6
 LOSS_PLOT_DPI := 300
 
-# Embedding plot parameters
-EMBEDDING_DATA_CONFIG := $(DATA_CONFIG)
-EMBEDDING_MODEL_PATH := $(MODEL_OUTPUT)
-EMBEDDING_PROJECTION_OUTPUT := $(OUTPUT_DIR)/embedding_projections.png
-EMBEDDING_DEVICE := cpu
-EMBEDDING_RAND_SUBSET_SIZE :=
-EMBEDDING_SEED :=
+# Gene expression embedding plot parameters
+GENE_EXPRESSION_EMBEDDING_DEVICE := cpu
+GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE :=
+GENE_EXPRESSION_EMBEDDING_SEED :=
 
-.PHONY: gene_expression loss_plot embedding_plot
+# Fashion MNIST embedding plot parameters
+FASHION_MNIST_EMBEDDING_DEVICE := cpu
+FASHION_MNIST_EMBEDDING_RAND_SUBSET_SIZE :=
+FASHION_MNIST_EMBEDDING_SEED :=
 
-all: gene_expression loss_plot embedding_plot
+LOG_LEVEL := INFO
 
-gene_expression:
-	@mkdir -p $(OUTPUT_DIR)
+.PHONY: all gene_expression fashion_mnist train_gene_expression train_fashion_mnist loss_plot_gene_expression loss_plot_fashion_mnist embedding_plot_gene_expression embedding_plot_fashion_mnist clean
 
-	@cp $(DATA_CONFIG) $(OUTPUT_DIR)
-	@cp $(MODEL_CONFIG) $(OUTPUT_DIR)
-	@cp $(TRAINING_CONFIG) $(OUTPUT_DIR)
+all: gene_expression fashion_mnist
 
+# Full pipeline rules: train -> loss_plot -> embedding_plot
+gene_expression: train_gene_expression loss_plot_gene_expression embedding_plot_gene_expression
+
+fashion_mnist: train_fashion_mnist loss_plot_fashion_mnist embedding_plot_fashion_mnist
+
+# Training rules
+train_gene_expression:
+	@mkdir -p $(GENE_EXPRESSION_OUTPUT_DIR)
+	@cp $(GENE_EXPRESSION_DATA_CONFIG) $(GENE_EXPRESSION_OUTPUT_DIR)/config.data.yaml
+	@cp $(GENE_EXPRESSION_MODEL_CONFIG) $(GENE_EXPRESSION_OUTPUT_DIR)/config.model.yaml
+	@cp $(GENE_EXPRESSION_TRAINING_CONFIG) $(GENE_EXPRESSION_OUTPUT_DIR)/config.training.yaml
 	@uv run -m gene_expression.main \
-	--data-config $(DATA_CONFIG) \
-	--model-config $(MODEL_CONFIG) \
-	--training-config $(TRAINING_CONFIG) \
-	--model-output $(MODEL_OUTPUT) \
-	--history-output $(HISTORY_OUTPUT) \
+	--data-config $(GENE_EXPRESSION_DATA_CONFIG) \
+	--model-config $(GENE_EXPRESSION_MODEL_CONFIG) \
+	--training-config $(GENE_EXPRESSION_TRAINING_CONFIG) \
+	--model-output $(GENE_EXPRESSION_OUTPUT_DIR)/model.pth \
+	--history-output $(GENE_EXPRESSION_OUTPUT_DIR)/loss_history.parquet \
 	--log-level $(LOG_LEVEL)
 
-loss_plot:
-	@uv run -m gene_expression.loss_plot \
-	--input $(LOSS_PLOT_INPUT) \
-	--output $(LOSS_PLOT_OUTPUT) \
+train_fashion_mnist:
+	@mkdir -p $(FASHION_MNIST_OUTPUT_DIR)
+	@cd $(FASHION_MNIST_OUTPUT_DIR) && uv run -m fashion_mnist.main
+
+# Loss plot rules
+loss_plot_gene_expression:
+	@uv run -m utils.loss_plot \
+	--input $(GENE_EXPRESSION_OUTPUT_DIR)/loss_history.parquet \
+	--output $(GENE_EXPRESSION_OUTPUT_DIR)/loss_plot.png \
 	--title $(LOSS_PLOT_TITLE) \
 	--offset $(LOSS_PLOT_OFFSET) \
 	--width $(LOSS_PLOT_WIDTH) \
 	--height $(LOSS_PLOT_HEIGHT) \
 	--dpi $(LOSS_PLOT_DPI)
 
-embedding_plot:
+loss_plot_fashion_mnist:
+	@uv run -m utils.loss_plot \
+	--input $(FASHION_MNIST_OUTPUT_DIR)/loss_history.parquet \
+	--output $(FASHION_MNIST_OUTPUT_DIR)/loss_plot.png \
+	--title $(LOSS_PLOT_TITLE) \
+	--offset $(LOSS_PLOT_OFFSET) \
+	--width $(LOSS_PLOT_WIDTH) \
+	--height $(LOSS_PLOT_HEIGHT) \
+	--dpi $(LOSS_PLOT_DPI)
+
+# Embedding plot rules
+embedding_plot_gene_expression:
 	@uv run -m gene_expression.embedding_plot \
-	--data-config $(EMBEDDING_DATA_CONFIG) \
-	--model-path $(EMBEDDING_MODEL_PATH) \
-	--device $(EMBEDDING_DEVICE) \
-	$(if $(EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(EMBEDDING_RAND_SUBSET_SIZE)) \
-	$(if $(EMBEDDING_SEED),--seed $(EMBEDDING_SEED)) \
-	--projection-output $(EMBEDDING_PROJECTION_OUTPUT)
+	--data-config $(GENE_EXPRESSION_OUTPUT_DIR)/config.data.yaml \
+	--model-path $(GENE_EXPRESSION_OUTPUT_DIR)/model.pth \
+	--device $(GENE_EXPRESSION_EMBEDDING_DEVICE) \
+	$(if $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE)) \
+	$(if $(GENE_EXPRESSION_EMBEDDING_SEED),--seed $(GENE_EXPRESSION_EMBEDDING_SEED)) \
+	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections.png
+
+embedding_plot_fashion_mnist:
+	@cd $(FASHION_MNIST_OUTPUT_DIR) && uv run -m fashion_mnist.embedding_plot
+
+clean:
+	rm -rf $(GENE_EXPRESSION_OUTPUT_DIR)
+	rm -rf $(FASHION_MNIST_OUTPUT_DIR)

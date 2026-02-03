@@ -36,7 +36,7 @@ HYBRID_LAMBDA = 0.5
 
 # Output paths
 MODEL_OUTPUT = Path("fashion_mnist_autoencoder.pt")
-HISTORY_OUTPUT = Path("training_history.parquet")
+HISTORY_OUTPUT = Path("loss_history.parquet")
 
 logging.basicConfig(
     level=logging.INFO,
