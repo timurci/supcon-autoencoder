@@ -28,6 +28,7 @@ extra = [
     "dec-torch",
     "polars>=1.37.1",
     "scikit-learn>=1.8.0",
+    "torchvision>=0.24.1",
     "umap-learn>=0.5.11",
 ]
 

@@ -12,6 +12,7 @@ uv.lock
 
 # Output files from examples
 *.parquet
+*.pt
 *.pth
 *.png
 examples/**/*.yaml

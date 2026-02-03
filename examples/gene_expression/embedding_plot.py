@@ -5,16 +5,17 @@ specifically for gene expression datasets.
 """
 
 import logging
+import sys
 from argparse import ArgumentParser
 from pathlib import Path
+
+# Add parent directory to path for imports when running from examples/
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-
-from examples.gene_expression.config import DataConfig
-from examples.gene_expression.dataset import LabeledGeneExpressionDataset, LabelEncoder
-from examples.utils.embedding_plot import (
+from utils.embedding_plot import (  # type: ignore[import-not-found]
     analyze_embeddings,
     compute_embeddings,
     compute_projections,
@@ -23,6 +24,9 @@ from examples.utils.embedding_plot import (
     projection_plot,
     train_kmeans,
 )
+
+from .config import DataConfig
+from .dataset import LabeledGeneExpressionDataset, LabelEncoder
 
 
 def build_parser() -> ArgumentParser:
