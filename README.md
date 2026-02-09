@@ -14,6 +14,42 @@ SupCon Autoencoder integrates two complementary objectives:
 \mathcal{L} = \lambda \cdot \mathcal{L}_{\text{SupCon}} + (1 - \lambda) \cdot \mathcal{L}_{\text{reconstruction}}
 ```
 
+### Using the Loss Function Independently
+
+You can use the loss functions without the built-in trainer. Just match the simple interface:
+
+```python
+# SupConLoss: takes embeddings and labels
+supcon_loss = SupConLoss(temperature=0.5)
+loss = supcon_loss(embeddings, labels)
+
+# HybridLoss: takes embeddings, labels, original, reconstructed
+hybrid_loss = HybridLoss(supcon_loss, nn.MSELoss(), lambda_=0.5)
+loss = hybrid_loss(embeddings, labels, original, reconstructed)
+```
+
+### Built-in Trainer Requirements (Optional)
+
+If you use the built-in `Trainer`, your model and data must follow these protocols:
+
+**Model** — Must expose `encoder` and `decoder` properties:
+```python
+class MyAutoencoder(nn.Module):
+    @property
+    def encoder(self) -> nn.Module: ...
+
+    @property
+    def decoder(self) -> nn.Module: ...
+```
+
+**Data** — Must return a dictionary with `features` and `labels`:
+```python
+sample = {
+    "features": torch.Tensor,  # Input data
+    "labels": torch.Tensor,    # Class labels
+}
+```
+
 ## Quick Start
 
 ```python
