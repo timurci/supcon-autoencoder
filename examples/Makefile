@@ -51,7 +51,9 @@ train_gene_expression:
 
 train_fashion_mnist:
 	@mkdir -p $(FASHION_MNIST_OUTPUT_DIR)
-	@cd $(FASHION_MNIST_OUTPUT_DIR) && uv run -m fashion_mnist.main
+	@uv run -m fashion_mnist.main \
+	--model-output $(FASHION_MNIST_OUTPUT_DIR)/fashion_mnist_autoencoder.pt \
+	--history-output $(FASHION_MNIST_OUTPUT_DIR)/loss_history.parquet
 
 # Loss plot rules
 loss_plot_gene_expression:
@@ -85,7 +87,9 @@ embedding_plot_gene_expression:
 	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections.png
 
 embedding_plot_fashion_mnist:
-	@cd $(FASHION_MNIST_OUTPUT_DIR) && uv run -m fashion_mnist.embedding_plot
+	@uv run -m fashion_mnist.embedding_plot \
+	--model-path $(FASHION_MNIST_OUTPUT_DIR)/fashion_mnist_autoencoder.pt \
+	--projection-output $(FASHION_MNIST_OUTPUT_DIR)/embedding_projections.png
 
 clean:
 	rm -rf $(GENE_EXPRESSION_OUTPUT_DIR)

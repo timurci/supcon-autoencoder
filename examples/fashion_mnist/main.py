@@ -5,6 +5,7 @@ contrastive autoencoder on the Fashion-MNIST dataset.
 """
 
 import logging
+from argparse import ArgumentParser
 from pathlib import Path
 
 import polars as pl
@@ -34,9 +35,18 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SUPCON_TEMPERATURE = 0.5
 HYBRID_LAMBDA = 0.5
 
-# Output paths
-MODEL_OUTPUT = Path("fashion_mnist_autoencoder.pt")
-HISTORY_OUTPUT = Path("loss_history.parquet")
+
+def build_parser() -> ArgumentParser:
+    """Create argument parser."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--model-output", required=True, help="Path to save the trained model."
+    )
+    parser.add_argument(
+        "--history-output", required=True, help="Path to save the loss history."
+    )
+    return parser
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -136,17 +146,20 @@ def save_history(history: list[EpochLoss], output_path: Path) -> None:
 
 
 if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
+
     # Train model
     model, history = train()
 
     # Save model
     if isinstance(model, AutoEncoder):
-        model.save(str(MODEL_OUTPUT))
+        model.save(args.model_output)
     else:
-        torch.save(model.state_dict(), MODEL_OUTPUT)
-    logger.info("Model saved to %s", MODEL_OUTPUT)
+        torch.save(model.state_dict(), args.model_output)
+    logger.info("Model saved to %s", args.model_output)
 
     # Save training history
-    save_history(history, HISTORY_OUTPUT)
+    save_history(history, Path(args.history_output))
 
     logger.info("Training complete!")

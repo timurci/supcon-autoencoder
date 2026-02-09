@@ -6,6 +6,7 @@ from a trained SupCon autoencoder on Fashion-MNIST dataset.
 
 import logging
 import sys
+from argparse import ArgumentParser
 from pathlib import Path
 
 # Add parent directory to path for imports when running from examples/
@@ -27,9 +28,7 @@ from .dataset import create_dataloader
 
 # Hardcoded parameters
 DATA_ROOT = "./data"
-MODEL_PATH = "fashion_mnist_autoencoder.pt"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PROJECTION_OUTPUT = "embedding_projections.png"
 
 # Optional: Set to None to use all data
 RAND_SUBSET_SIZE = None
@@ -51,6 +50,19 @@ FASHION_MNIST_CLASSES = [
     "Ankle boot",
 ]
 
+
+def build_parser() -> ArgumentParser:
+    """Create argument parser."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--model-path", required=True, help="Path to the trained model file."
+    )
+    parser.add_argument(
+        "--projection-output", required=True, help="Path to save the projection plot."
+    )
+    return parser
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -60,6 +72,9 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """Run embedding visualization pipeline."""
+    parser = build_parser()
+    args = parser.parse_args()
+
     logger.info("Using device: %s", DEVICE)
 
     # Set random seed
@@ -90,8 +105,8 @@ def main() -> None:
     )
 
     # Load trained model and move to device
-    model = load_model(MODEL_PATH, DEVICE)
-    model = model.to(DEVICE)  # type: ignore[attr-defined]
+    model = load_model(args.model_path, DEVICE)
+    model = model.to(DEVICE)
 
     # Compute training embeddings
     logger.info("Computing training embeddings...")
@@ -103,7 +118,7 @@ def main() -> None:
     )
     logger.info(
         "Training embeddings computed: %d samples",
-        len(training_embeddings),  # type: ignore[arg-type]
+        len(training_embeddings),
     )
     analyze_embeddings(training_embeddings, "training", logger)
 
@@ -117,12 +132,12 @@ def main() -> None:
     )
     logger.info(
         "Validation embeddings computed: %d samples",
-        len(validation_embeddings),  # type: ignore[arg-type]
+        len(validation_embeddings),
     )
     analyze_embeddings(validation_embeddings, "validation", logger)
 
     # Train k-means and evaluate clustering
-    n_clusters = len(torch.unique(training_embeddings.labels))  # type: ignore[attr-defined]
+    n_clusters = len(torch.unique(training_embeddings.labels))
     logger.info("Fitting K-means model with %d clusters...", n_clusters)
     kmeans_model = train_kmeans(training_embeddings, n_clusters=n_clusters)
     logger.info("K-means model fitted")
@@ -145,7 +160,7 @@ def main() -> None:
     logger.info("Computing 2D projections (PCA, t-SNE, UMAP)...")
     projections = compute_projections(training_embeddings)
     logger.info("2D projections computed")
-    training_labels_numeric = training_embeddings.labels.cpu().numpy()  # type: ignore[attr-defined]
+    training_labels_numeric = training_embeddings.labels.cpu().numpy()
 
     # Map numeric labels to class names for visualization
     training_labels = np.array(
@@ -164,8 +179,8 @@ def main() -> None:
     logger.info("Projection plot created")
 
     # Save projection plot
-    fig.savefig(PROJECTION_OUTPUT, dpi=300, bbox_inches="tight")
-    logger.info("Projection plot saved to %s", PROJECTION_OUTPUT)
+    fig.savefig(args.projection_output, dpi=300, bbox_inches="tight")
+    logger.info("Projection plot saved to %s", args.projection_output)
 
     logger.info("Embedding visualization complete!")
 

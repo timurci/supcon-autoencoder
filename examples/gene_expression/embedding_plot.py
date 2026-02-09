@@ -147,7 +147,7 @@ if __name__ == "__main__":
     )
     logger.info(
         "Training embeddings computed: %d samples",
-        len(training_embeddings),  # type: ignore[arg-type]
+        len(training_embeddings),
     )
     analyze_embeddings(training_embeddings, "training", logger)
 
@@ -163,12 +163,12 @@ if __name__ == "__main__":
         )
         logger.info(
             "Validation embeddings computed: %d samples",
-            len(validation_embeddings),  # type: ignore[arg-type]
+            len(validation_embeddings),
         )
         analyze_embeddings(validation_embeddings, "validation", logger)
 
     # Train k-means and evaluate clustering
-    n_clusters = len(torch.unique(training_embeddings.labels))  # type: ignore[attr-defined]
+    n_clusters = len(torch.unique(training_embeddings.labels))
     logger.info("Fitting K-means model with %d clusters...", n_clusters)
     kmeans_model = train_kmeans(training_embeddings, n_clusters=n_clusters)
     logger.info("K-means model fitted")
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     logger.info("Computing 2D projections (PCA, t-SNE, UMAP)...")
     projections = compute_projections(training_embeddings)
     logger.info("2D projections computed")
-    training_labels_numeric = training_embeddings.labels.cpu().numpy()  # type: ignore[attr-defined]
+    training_labels_numeric = training_embeddings.labels.cpu().numpy()
 
     # Convert numeric labels to string labels using label encoder
     label_encoder = LabelEncoder.from_json(data_training_config.label_encoder_file)
