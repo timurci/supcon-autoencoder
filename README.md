@@ -2,6 +2,9 @@
 
 A PyTorch library that combines **Supervised Contrastive Learning** with **Autoencoder** architectures. This hybrid approach trains autoencoders that not only reconstruct input data but also organize the latent space so that samples from the same class cluster together.
 
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Ftimurci%2Fsupcon-autoencoder%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&style=flat-square)
+![GitHub License](https://img.shields.io/github/license/timurci/supcon-autoencoder?style=flat-square)
+
 ## Overview
 
 SupCon Autoencoder integrates two complementary objectives:
