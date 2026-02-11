@@ -70,6 +70,7 @@ class Trainer:
         """
         self.model.train()
         total_loss = 0.0
+        total_samples = 0
         for batch in loader:
             inputs: torch.Tensor = batch["features"].to(device)
             labels: torch.Tensor = batch["labels"].to(device)
@@ -89,7 +90,8 @@ class Trainer:
             self.optimizer.step()
 
             total_loss += loss.item()
-        return total_loss / len(loader)
+            total_samples += inputs.size(0)
+        return total_loss / total_samples
 
     def validate_epoch(self, loader: DataLoader[Sample], device: torch.device) -> float:
         """Run one validation epoch over the dataset.
@@ -103,6 +105,7 @@ class Trainer:
         """
         self.model.eval()
         total_loss = 0.0
+        total_samples = 0
         with torch.inference_mode():
             for batch in loader:
                 inputs: torch.Tensor = batch["features"].to(device)
@@ -119,7 +122,8 @@ class Trainer:
                 )
 
                 total_loss += loss.item()
-        return total_loss / len(loader)
+                total_samples += inputs.size(0)
+        return total_loss / total_samples
 
     def train(
         self,
