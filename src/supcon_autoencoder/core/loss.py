@@ -1,9 +1,17 @@
 """Custom loss function classes."""
 
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 import torch
 from torch import nn
+
+
+class HybridLossItem(TypedDict):
+    """Contains reconstruction loss, contrastive loss, and hybrid loss."""
+
+    reconstruction_loss: float
+    contrastive_loss: float
+    hybrid_loss: torch.Tensor
 
 
 class ReconstructionLossProtocol(Protocol):
@@ -74,7 +82,7 @@ class HybridLoss(nn.Module):
         labels: torch.Tensor,
         original_input: torch.Tensor,
         reconstructed_input: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> HybridLossItem:
         """Compute the hybrid loss.
 
         Args:
@@ -88,7 +96,12 @@ class HybridLoss(nn.Module):
         """
         sup_con = self.sup_con_loss(embeddings, labels)
         recon = self.reconstruction_loss(original_input, reconstructed_input)
-        return self.lambda_ * sup_con + (1 - self.lambda_) * recon
+        hybrid_loss = self.lambda_ * sup_con + (1 - self.lambda_) * recon
+        return {
+            "reconstruction_loss": recon.item(),
+            "contrastive_loss": sup_con.item(),
+            "hybrid_loss": hybrid_loss,
+        }
 
 
 class SupConLoss(nn.Module):

@@ -1,16 +1,19 @@
 """Module for training loop implementation."""
 
 import logging
-from enum import StrEnum
 from typing import TYPE_CHECKING, NamedTuple
 
 import torch
+
+from supcon_autoencoder.core.trackers import ExperimentTracker, Phase
 
 from .model import Autoencoder
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
     from torch.utils.data import DataLoader
+
+    from supcon_autoencoder.core.loss import HybridLossItem
 
     from .data import Sample
     from .loss import HybridLoss
@@ -20,22 +23,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TrainingPhase(StrEnum):
-    """Training phase enum.
+class LossItem(NamedTuple):
+    """Loss dictionary for training."""
 
-    Used to distinguish between training and validation phases in the training loop.
-    """
-
-    TRAINING = "training"
-    VALIDATION = "validation"
-
-
-class EpochLoss(NamedTuple):
-    """Average loss over an epoch."""
-
-    phase: TrainingPhase
-    epoch: int
-    loss: float
+    reconstruction_loss: float
+    contrastive_loss: float
+    hybrid_loss: float
 
 
 class Trainer:
@@ -58,7 +51,9 @@ class Trainer:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
 
-    def _train_epoch(self, loader: DataLoader[Sample], device: torch.device) -> float:
+    def _train_epoch(
+        self, loader: DataLoader[Sample], device: torch.device
+    ) -> LossItem:
         """Run one training epoch over the dataset.
 
         Args:
@@ -69,7 +64,9 @@ class Trainer:
             float: Average loss over the epoch.
         """
         self.model.train()
-        total_loss = 0.0
+        total_supcon_loss = 0.0
+        total_recon_loss = 0.0
+        total_hybrid_loss = 0.0
         total_samples = 0
         for batch in loader:
             inputs: torch.Tensor = batch["features"].to(device)
@@ -79,24 +76,31 @@ class Trainer:
             embeddings: torch.Tensor = self.model.encoder(inputs)
             reconstructions: torch.Tensor = self.model.decoder(embeddings)
 
-            loss: torch.Tensor = self.loss_fn(
+            loss: HybridLossItem = self.loss_fn(
                 embeddings=embeddings,
                 labels=labels,
                 original_input=inputs,
                 reconstructed_input=reconstructions,
             )
 
-            loss.backward()
+            loss["hybrid_loss"].backward()
             self.optimizer.step()
 
             batch_size = inputs.size(0)
-            total_loss += loss.item() * batch_size
+            total_supcon_loss += loss["contrastive_loss"] * batch_size
+            total_recon_loss += loss["reconstruction_loss"] * batch_size
+            total_hybrid_loss += loss["hybrid_loss"].item() * batch_size
             total_samples += batch_size
-        return total_loss / total_samples
+
+        return LossItem(
+            contrastive_loss=total_supcon_loss / total_samples,
+            reconstruction_loss=total_recon_loss / total_samples,
+            hybrid_loss=total_hybrid_loss / total_samples,
+        )
 
     def _validate_epoch(
         self, loader: DataLoader[Sample], device: torch.device
-    ) -> float:
+    ) -> LossItem:
         """Run one validation epoch over the dataset.
 
         Args:
@@ -107,7 +111,9 @@ class Trainer:
             float: Average loss over the epoch.
         """
         self.model.eval()
-        total_loss = 0.0
+        total_supcon_loss = 0.0
+        total_recon_loss = 0.0
+        total_hybrid_loss = 0.0
         total_samples = 0
         with torch.inference_mode():
             for batch in loader:
@@ -117,7 +123,7 @@ class Trainer:
                 embeddings: torch.Tensor = self.model.encoder(inputs)
                 reconstructions: torch.Tensor = self.model.decoder(embeddings)
 
-                loss: torch.Tensor = self.loss_fn(
+                loss: HybridLossItem = self.loss_fn(
                     embeddings=embeddings,
                     labels=labels,
                     original_input=inputs,
@@ -125,9 +131,15 @@ class Trainer:
                 )
 
                 batch_size = inputs.size(0)
-                total_loss += loss.item() * batch_size
+                total_supcon_loss += loss["contrastive_loss"] * batch_size
+                total_recon_loss += loss["reconstruction_loss"] * batch_size
+                total_hybrid_loss += loss["hybrid_loss"].item() * batch_size
                 total_samples += batch_size
-        return total_loss / total_samples
+        return LossItem(
+            contrastive_loss=total_supcon_loss / total_samples,
+            reconstruction_loss=total_recon_loss / total_samples,
+            hybrid_loss=total_hybrid_loss / total_samples,
+        )
 
     def train(
         self,
@@ -135,8 +147,8 @@ class Trainer:
         device: torch.device,
         epochs: int,
         val_loader: DataLoader[Sample] | None = None,
-        logging_interval: int = 100,
-    ) -> list[EpochLoss]:
+        experiment_trackers: list[ExperimentTracker] | None = None,
+    ) -> None:
         """Run training loop.
 
         Args:
@@ -144,29 +156,19 @@ class Trainer:
             val_loader: DataLoader for validation data.
             device: Device to load data onto.
             epochs: Number of epochs to train for.
-            logging_interval: Number of batches between logging.
+            experiment_trackers: List of experiment trackers to log metrics to.
         """
-        history: list[EpochLoss] = []
+        experiment_trackers = experiment_trackers or []
         for epoch in range(epochs):
             train_loss = self._train_epoch(train_loader, device)
-            history.append(
-                EpochLoss(
-                    phase=TrainingPhase.TRAINING, epoch=epoch + 1, loss=train_loss
+            for tracker in experiment_trackers:
+                tracker.log_metrics(
+                    phase=Phase.TRAIN, step=epoch + 1, metrics=train_loss._asdict()
                 )
-            )
             val_loss = None
             if val_loader is not None:
                 val_loss = self._validate_epoch(val_loader, device)
-                history.append(
-                    EpochLoss(
-                        phase=TrainingPhase.VALIDATION, epoch=epoch + 1, loss=val_loss
+                for tracker in experiment_trackers:
+                    tracker.log_metrics(
+                        phase=Phase.VAL, step=epoch + 1, metrics=val_loss._asdict()
                     )
-                )
-            if epoch % logging_interval == 0:
-                logger.info(
-                    "Epoch %5d, training loss %.4f, validation loss %.4f",
-                    epoch + 1,
-                    train_loss,
-                    val_loss,
-                )
-        return history

@@ -4,7 +4,7 @@ import pytest
 import torch
 from torch import nn
 
-from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
+from supcon_autoencoder.core.loss import HybridLoss, HybridLossItem, SupConLoss
 
 
 class TestHybridLoss:
@@ -54,20 +54,20 @@ class TestHybridLoss:
 
         # Test with lambda = 0.3 (unequal weighting)
         hybrid = HybridLoss(sup_loss, recon_loss, lambda_=0.3)
-        loss = hybrid(embeddings, labels, original, reconstructed)
+        loss: HybridLossItem = hybrid(embeddings, labels, original, reconstructed)
 
         expected = 0.175
-        assert abs(loss.item() - expected) < 1e-6
+        assert abs(loss["hybrid_loss"].item() - expected) < 1e-6
 
         # Test with lambda = 0.0 (only reconstruction)
         hybrid0 = HybridLoss(sup_loss, recon_loss, lambda_=0.0)
-        loss0 = hybrid0(embeddings, labels, original, reconstructed)
-        assert abs(loss0.item() - 0.25) < 1e-6
+        loss0: HybridLossItem = hybrid0(embeddings, labels, original, reconstructed)
+        assert abs(loss0["hybrid_loss"].item() - 0.25) < 1e-6
 
         # Test with lambda = 1.0 (only supcon)
         hybrid1 = HybridLoss(sup_loss, recon_loss, lambda_=1.0)
-        loss1 = hybrid1(embeddings, labels, original, reconstructed)
-        assert abs(loss1.item()) < 1e-6
+        loss1: HybridLossItem = hybrid1(embeddings, labels, original, reconstructed)
+        assert abs(loss1["hybrid_loss"].item()) < 1e-6
 
     def test_hybrid_loss_numerical_exact(self) -> None:
         """Test hybrid loss with hardcoded values for exact numerical validation."""
@@ -105,12 +105,12 @@ class TestHybridLoss:
         recon_loss = nn.MSELoss()
         hybrid = HybridLoss(sup_loss, recon_loss, lambda_=0.5)
 
-        loss = hybrid(embeddings, labels, original, reconstructed)
+        loss: HybridLossItem = hybrid(embeddings, labels, original, reconstructed)
 
         # Manually computed: 0.5 * 0.5514447093 (SupCon) + 0.5 * 0.0 (MSE)
         expected_loss = 0.27572235465
 
-        assert abs(loss.item() - expected_loss) < 1e-6
+        assert abs(loss["hybrid_loss"].item() - expected_loss) < 1e-6
 
     def test_hybrid_loss_numerical_complex(self) -> None:
         """Test hybrid loss with complex 6-sample scenario."""
@@ -154,12 +154,12 @@ class TestHybridLoss:
 
         # Test with lambda = 0.7 (unequal weighting)
         hybrid = HybridLoss(sup_loss, recon_loss, lambda_=0.7)
-        loss = hybrid(embeddings, labels, original, reconstructed)
+        loss: HybridLossItem = hybrid(embeddings, labels, original, reconstructed)
 
         # Manually computed: 0.7 * 0.8250042796 + 0.3 * 0.0225000475
         expected_loss = 0.5842530100
 
-        assert abs(loss.item() - expected_loss) < 1e-6
+        assert abs(loss["hybrid_loss"].item() - expected_loss) < 1e-6
 
 
 class TestSupConLoss:
