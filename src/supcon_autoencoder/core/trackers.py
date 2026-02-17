@@ -136,21 +136,21 @@ class MLflowTracker(ExperimentTracker, ContextManager):
 
     def log_params(self, params: Mapping[str, Any]) -> None:
         """Logs the parameters of the current experiment run."""
-        mlflow.log_params(dict(params))
+        mlflow.log_params(dict(params))  # type: ignore[possibly-missing-attribute]
 
     def log_metrics(
         self, phase: Phase, step: int, metrics: Mapping[str, float]
     ) -> None:
         """Logs the metrics of the current experiment run."""
         prefixed_metrics = {f"{phase}/{key}": value for key, value in metrics.items()}
-        mlflow.log_metrics(prefixed_metrics, step=step)
+        mlflow.log_metrics(prefixed_metrics, step=step)  # type: ignore[possibly-missing-attribute]
 
     def __enter__(self) -> Self:
         """Enters the context."""
         if self.tracking_uri is not None:
             mlflow.set_tracking_uri(self.tracking_uri)
         mlflow.set_experiment(self.experiment_name)
-        mlflow.start_run(run_name=self.run_name)
+        mlflow.start_run(run_name=self.run_name)  # type: ignore[possibly-missing-attribute]
         return self
 
     def __exit__(
@@ -160,4 +160,4 @@ class MLflowTracker(ExperimentTracker, ContextManager):
         exc_tb: TracebackType | None,
     ) -> None:
         """Exits the context."""
-        mlflow.end_run()
+        mlflow.end_run()  # type: ignore[possibly-missing-attribute]
