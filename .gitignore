@@ -17,3 +17,4 @@ uv.lock
 *.png
 examples/**/*.yaml
 examples/**/*.json
+examples/**/data
