@@ -8,7 +8,6 @@ class TrainingLoopConfig:
     """Configuration for training loop."""
 
     num_epochs: int = 1000
-    logging_interval: int = 100
     device: str = "cuda"
 
 

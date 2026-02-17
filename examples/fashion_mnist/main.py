@@ -6,15 +6,14 @@ contrastive autoencoder on the Fashion-MNIST dataset.
 
 import logging
 from argparse import ArgumentParser
-from pathlib import Path
 
-import polars as pl
 import torch
 from dec_torch.autoencoder import AutoEncoder, AutoEncoderConfig
 from torch import nn
 
 from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
-from supcon_autoencoder.core.training import EpochLoss, Trainer
+from supcon_autoencoder.core.trackers import MLflowTracker, StandardLoggingTracker
+from supcon_autoencoder.core.training import Trainer
 
 from .dataset import create_dataloader
 
@@ -23,13 +22,14 @@ BATCH_SIZE = 256
 
 # Model parameters
 INPUT_DIM = 784  # 28x28 flattened
-LATENT_DIM = 10
+LATENT_DIM = 32
 HIDDEN_DIMS = [512, 256, 128]
 
 # Training parameters
 EPOCHS = 50
 LEARNING_RATE = 1e-3
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+LOGGING_INTERVAL = EPOCHS // 10
 
 # Loss parameters
 SUPCON_TEMPERATURE = 0.5
@@ -42,9 +42,6 @@ def build_parser() -> ArgumentParser:
     parser.add_argument(
         "--model-output", required=True, help="Path to save the trained model."
     )
-    parser.add_argument(
-        "--history-output", required=True, help="Path to save the loss history."
-    )
     return parser
 
 
@@ -55,13 +52,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def train() -> tuple[nn.Module, list[EpochLoss]]:
+def train() -> nn.Module:
     """Train a SupCon autoencoder on Fashion-MNIST.
 
     Returns:
-        tuple containing:
-            - Trained autoencoder model
-            - Training history as list of EpochLoss tuples
+        Trained autoencoder model
     """
     logger.info("Using device: %s", DEVICE)
 
@@ -112,37 +107,45 @@ def train() -> tuple[nn.Module, list[EpochLoss]]:
         lambda_=HYBRID_LAMBDA,
     )
 
-    # Create trainer and train
+    # Create trainer
     trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
 
-    logger.info("Starting training for %d epochs...", EPOCHS)
-    history = trainer.train(
-        train_loader=train_loader,
-        device=DEVICE,
-        epochs=EPOCHS,
-        val_loader=val_loader,
-        logging_interval=10,
-    )
-
-    return model, history
-
-
-def save_history(history: list[EpochLoss], output_path: Path) -> None:
-    """Save training history to parquet file.
-
-    Args:
-        history: List of EpochLoss tuples from training.
-        output_path: Path to save the parquet file.
-    """
-    history_dict = [h._asdict() for h in history]
-    schema = {
-        "phase": pl.Enum(["training", "validation"]),
-        "epoch": pl.UInt32,
-        "loss": pl.Float32,
+    # Define parameters for tracking
+    params = {
+        "dataset": "Fashion-MNIST",
+        "batch_size": BATCH_SIZE,
+        "input_dim": INPUT_DIM,
+        "latent_dim": LATENT_DIM,
+        "hidden_dims": HIDDEN_DIMS,
+        "epochs": EPOCHS,
+        "learning_rate": LEARNING_RATE,
+        "optimizer": str(optimizer),
+        "supcon_temperature": SUPCON_TEMPERATURE,
+        "hybrid_lambda": HYBRID_LAMBDA,
     }
-    history_df = pl.DataFrame(history_dict, schema=schema)
-    history_df.write_parquet(output_path)
-    logger.info("Training history saved to %s", output_path)
+
+    logger.info("Starting training for %d epochs...", EPOCHS)
+
+    with (
+        StandardLoggingTracker(
+            logger=logger, logging_interval=LOGGING_INTERVAL, experiment_steps=EPOCHS
+        ) as logging_tracker,
+        MLflowTracker(
+            experiment_name="fashion-mnist-supcon-autoencoder"
+        ) as mlflow_tracker,
+    ):
+        logging_tracker.log_params(params)
+        mlflow_tracker.log_params(params)
+
+        trainer.train(
+            train_loader=train_loader,
+            device=DEVICE,
+            epochs=EPOCHS,
+            val_loader=val_loader,
+            experiment_trackers=[logging_tracker, mlflow_tracker],
+        )
+
+    return model
 
 
 if __name__ == "__main__":
@@ -150,7 +153,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Train model
-    model, history = train()
+    model = train()
 
     # Save model
     if isinstance(model, AutoEncoder):
@@ -158,8 +161,5 @@ if __name__ == "__main__":
     else:
         torch.save(model.state_dict(), args.model_output)
     logger.info("Model saved to %s", args.model_output)
-
-    # Save training history
-    save_history(history, Path(args.history_output))
 
     logger.info("Training complete!")

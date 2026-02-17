@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 from dec_torch.autoencoder import AutoEncoder, AutoEncoderConfig
 
 if TYPE_CHECKING:
-    from torch import nn
+    from supcon_autoencoder.core.model import Autoencoder
 
     from .config import ModelConfig
 
 
-def create_autoencoder(input_dim: int, model_config: ModelConfig) -> nn.Module:
+def create_autoencoder(input_dim: int, model_config: ModelConfig) -> Autoencoder:
     """Create an autoencoder model from model config."""
     config = AutoEncoderConfig.build(
         input_dim=input_dim,

@@ -1,16 +1,21 @@
 """Training script for SupCon autoencoder on gene expression data."""
 
 import logging
+from argparse import ArgumentParser
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import polars as pl
 import torch
 import yaml
 from dec_torch.autoencoder import AutoEncoder
 from torch import nn
 
 from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
-from supcon_autoencoder.core.training import EpochLoss, Trainer
+from supcon_autoencoder.core.trackers import MLflowTracker, StandardLoggingTracker
+from supcon_autoencoder.core.training import Trainer
+
+if TYPE_CHECKING:
+    from supcon_autoencoder.core.model import Autoencoder
 
 from .config import (
     DataConfig,
@@ -37,9 +42,6 @@ def build_parser() -> ArgumentParser:
         "--model-output", required=True, help="Path to save the trained model."
     )
     parser.add_argument(
-        "--history-output", required=False, help="Path to save the loss history."
-    )
-    parser.add_argument(
         "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     return parser
@@ -62,7 +64,7 @@ def train(  # noqa: PLR0913
     training_loop_config: TrainingLoopConfig,
     data_training_config: DataConfig,
     data_validation_config: DataConfig | None = None,
-) -> tuple[nn.Module, list[EpochLoss]]:
+) -> Autoencoder:
     """Train a SupCon autoencoder model.
 
     Args:
@@ -72,6 +74,9 @@ def train(  # noqa: PLR0913
         training_loop_config: Training loop configuration.
         data_training_config: Training data configuration.
         data_validation_config: Validation data configuration.
+
+    Returns:
+        Trained autoencoder model
     """
     training_loader = create_dataloader(data_training_config)
     validation_loader = None
@@ -83,7 +88,7 @@ def train(  # noqa: PLR0913
     logger.debug("Autoencoder input/output dimension: %d", input_dim)
 
     model = create_autoencoder(input_dim, model_config=model_config)
-    model = model.to(training_loop_config.device)
+    model = model.to(torch.device(training_loop_config.device))
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=optimizer_config.learning_rate)
 
@@ -99,20 +104,53 @@ def train(  # noqa: PLR0913
         loss_fn=loss_fn,
     )
 
-    history = trainer.train(
-        train_loader=training_loader,
-        device=torch.device(training_loop_config.device),
-        epochs=training_loop_config.num_epochs,
-        val_loader=validation_loader,
-        logging_interval=training_loop_config.logging_interval,
-    )
+    logging_interval = training_loop_config.num_epochs // 10
 
-    return model, history
+    params = {
+        "training_data": Path(data_training_config.expression_file).name,
+        "metadata": Path(data_training_config.metadata_file).name,
+        "batch_size": data_training_config.batch_size,
+        "latent_dim": model_config.latent_dim,
+        "hidden_dims": model_config.hidden_dims,
+        "input_dropout": model_config.input_dropout,
+        "encoder_activation": model_config.encoder_activation,
+        "decoder_activation": model_config.decoder_activation,
+        "hidden_activation": model_config.hidden_activation,
+        "learning_rate": optimizer_config.learning_rate,
+        "optimizer": str(optimizer),
+        "supcon_temperature": loss_config.supcon_temperature,
+        "hybrid_lambda": loss_config.hybrid_lambda,
+        "num_epochs": training_loop_config.num_epochs,
+    }
+
+    if data_validation_config is not None:
+        params["validation_data"] = Path(data_validation_config.expression_file).name
+
+    with (
+        StandardLoggingTracker(
+            logger=logger,
+            logging_interval=logging_interval,
+            experiment_steps=training_loop_config.num_epochs,
+        ) as logging_tracker,
+        MLflowTracker(
+            experiment_name="gene-expression-supcon-autoencoder"
+        ) as mlflow_tracker,
+    ):
+        logging_tracker.log_params(params)
+        mlflow_tracker.log_params(params)
+
+        trainer.train(
+            train_loader=training_loader,
+            device=torch.device(training_loop_config.device),
+            epochs=training_loop_config.num_epochs,
+            val_loader=validation_loader,
+            experiment_trackers=[logging_tracker, mlflow_tracker],
+        )
+
+    return model
 
 
 if __name__ == "__main__":
-    from argparse import ArgumentParser
-
     parser = build_parser()
     args = parser.parse_args()
 
@@ -133,7 +171,7 @@ if __name__ == "__main__":
     if data_yaml["data"]["validation"] is not None:
         data_validation_config = DataConfig(**data_yaml["data"]["validation"])
 
-    model, history = train(
+    model = train(
         model_config,
         optimizer_config,
         loss_config,
@@ -146,13 +184,3 @@ if __name__ == "__main__":
         model.save(args.model_output)
     else:
         torch.save(model.state_dict(), args.model_output)
-
-    if args.history_output is not None:
-        history_dict = [h._asdict() for h in history]
-        schema = {
-            "phase": pl.Enum(["training", "validation"]),
-            "epoch": pl.UInt32,
-            "loss": pl.Float32,
-        }
-        history_df = pl.DataFrame(history_dict, schema=schema)
-        history_df.write_parquet(args.history_output)

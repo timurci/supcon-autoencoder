@@ -3,7 +3,9 @@
 from typing import TYPE_CHECKING, Protocol, Self
 
 if TYPE_CHECKING:
-    from torch import nn
+    from collections.abc import Iterator
+
+    from torch import Tensor, device, nn
 
 
 class Autoencoder(Protocol):
@@ -25,4 +27,16 @@ class Autoencoder(Protocol):
 
     def eval(self) -> Self:
         """Switch to evaluation mode."""
+        ...
+
+    def to(self, device: device) -> Self:
+        """Move parameters to device."""
+        ...
+
+    def parameters(self) -> Iterator[nn.Parameter]:
+        """Return parameters."""
+        ...
+
+    def state_dict(self) -> dict[str, Tensor]:
+        """Return state dict."""
         ...

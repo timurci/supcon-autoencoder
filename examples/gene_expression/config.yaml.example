@@ -29,7 +29,6 @@ model:
 
 training_loop:
   num_epochs: 1000
-  logging_interval: 100
   device: "cuda"
 
 optimizer:
