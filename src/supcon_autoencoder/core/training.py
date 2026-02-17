@@ -58,7 +58,7 @@ class Trainer:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
 
-    def train_epoch(self, loader: DataLoader[Sample], device: torch.device) -> float:
+    def _train_epoch(self, loader: DataLoader[Sample], device: torch.device) -> float:
         """Run one training epoch over the dataset.
 
         Args:
@@ -89,11 +89,14 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
 
-            total_loss += loss.item()
-            total_samples += inputs.size(0)
+            batch_size = inputs.size(0)
+            total_loss += loss.item() * batch_size
+            total_samples += batch_size
         return total_loss / total_samples
 
-    def validate_epoch(self, loader: DataLoader[Sample], device: torch.device) -> float:
+    def _validate_epoch(
+        self, loader: DataLoader[Sample], device: torch.device
+    ) -> float:
         """Run one validation epoch over the dataset.
 
         Args:
@@ -121,8 +124,9 @@ class Trainer:
                     reconstructed_input=reconstructions,
                 )
 
-                total_loss += loss.item()
-                total_samples += inputs.size(0)
+                batch_size = inputs.size(0)
+                total_loss += loss.item() * batch_size
+                total_samples += batch_size
         return total_loss / total_samples
 
     def train(
@@ -144,7 +148,7 @@ class Trainer:
         """
         history: list[EpochLoss] = []
         for epoch in range(epochs):
-            train_loss = self.train_epoch(train_loader, device)
+            train_loss = self._train_epoch(train_loader, device)
             history.append(
                 EpochLoss(
                     phase=TrainingPhase.TRAINING, epoch=epoch + 1, loss=train_loss
@@ -152,7 +156,7 @@ class Trainer:
             )
             val_loss = None
             if val_loader is not None:
-                val_loss = self.validate_epoch(val_loader, device)
+                val_loss = self._validate_epoch(val_loader, device)
                 history.append(
                     EpochLoss(
                         phase=TrainingPhase.VALIDATION, epoch=epoch + 1, loss=val_loss
