@@ -7,7 +7,7 @@ import torch
 
 from supcon_autoencoder.core.trackers import ExperimentTracker, Phase
 
-from .model import Autoencoder
+from .model import Autoencoder, augment_samples_with_labels
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from .data import Sample
     from .loss import HybridLoss
-    from .model import Autoencoder
+    from .model import AugmentationModule, Autoencoder
 
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class Trainer:
         model: Autoencoder,
         optimizer: Optimizer,
         loss_fn: HybridLoss,
+        augmentation_module: AugmentationModule | None = None,
     ) -> None:
         """Initialize trainer.
 
@@ -46,10 +47,12 @@ class Trainer:
             model: Autoencoder model.
             optimizer: PyTorch optimizer.
             loss_fn: Hybrid loss function.
+            augmentation_module: Augmentation module for data augmentation.
         """
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
+        self.augmentation_module = augmentation_module
 
     def _train_epoch(
         self, loader: DataLoader[Sample], device: torch.device
@@ -71,6 +74,12 @@ class Trainer:
         for batch in loader:
             inputs: torch.Tensor = batch["features"].to(device)
             labels: torch.Tensor = batch["labels"].to(device)
+
+            if self.augmentation_module is not None:
+                inputs, labels = augment_samples_with_labels(
+                    self.augmentation_module, inputs, labels
+                )
+
             self.optimizer.zero_grad(set_to_none=True)
 
             embeddings: torch.Tensor = self.model.encoder(inputs)
