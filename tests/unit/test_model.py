@@ -70,7 +70,7 @@ class TestAugmentSamplesWithLabels:
 
         mock_aug = MockAugmentationModule(n_augmentations=3)
 
-        augmented_inputs, augmented_labels = augment_samples_with_labels(
+        augmented_inputs, augmented_labels, _ = augment_samples_with_labels(
             mock_aug, inputs, labels
         )
 
@@ -89,7 +89,7 @@ class TestAugmentSamplesWithLabels:
 
         mock_aug = MockAugmentationModule(n_augmentations=3)
 
-        augmented_inputs, augmented_labels = augment_samples_with_labels(
+        augmented_inputs, augmented_labels, _ = augment_samples_with_labels(
             mock_aug, inputs, labels
         )
 
@@ -108,7 +108,7 @@ class TestAugmentSamplesWithLabels:
 
         mock_aug = MockAugmentationModule(n_augmentations=2)
 
-        augmented_inputs, _ = augment_samples_with_labels(mock_aug, inputs, labels)
+        augmented_inputs, _, _ = augment_samples_with_labels(mock_aug, inputs, labels)
 
         assert augmented_inputs.shape == torch.Size([0, 2])
 
@@ -120,7 +120,7 @@ class TestAugmentSamplesWithLabels:
         inputs_1d = torch.tensor([[1.0], [2.0], [3.0], [4.0]])
         labels_1d = torch.tensor([1, 2, 3, 4])
 
-        augmented_inputs_1d, augmented_labels_1d = augment_samples_with_labels(
+        augmented_inputs_1d, augmented_labels_1d, _ = augment_samples_with_labels(
             mock_aug, inputs_1d, labels_1d
         )
 
@@ -132,7 +132,7 @@ class TestAugmentSamplesWithLabels:
         inputs_3d = torch.randn(2, 4, 5)
         labels_3d = torch.tensor([10, 20])
 
-        augmented_inputs_3d, augmented_labels_3d = augment_samples_with_labels(
+        augmented_inputs_3d, augmented_labels_3d, _ = augment_samples_with_labels(
             mock_aug, inputs_3d, labels_3d
         )
 
@@ -147,7 +147,7 @@ class TestAugmentSamplesWithLabels:
 
         mock_aug = MockAugmentationModule(n_augmentations=2)
 
-        augmented_inputs, _ = augment_samples_with_labels(mock_aug, inputs, labels)
+        augmented_inputs, _, _ = augment_samples_with_labels(mock_aug, inputs, labels)
 
         # Outputs should not require gradients (inside torch.no_grad())
         assert not augmented_inputs.requires_grad

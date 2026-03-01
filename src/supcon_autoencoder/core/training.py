@@ -75,10 +75,15 @@ class Trainer:
             inputs: torch.Tensor = batch["features"].to(device)
             labels: torch.Tensor = batch["labels"].to(device)
 
+            original_inputs = inputs
+
             if self.augmentation_module is not None:
-                inputs, labels = augment_samples_with_labels(
+                inputs, labels, sample_indices = augment_samples_with_labels(
                     self.augmentation_module, inputs, labels
                 )
+                original_inputs = original_inputs[
+                    sample_indices
+                ]  # extend original inputs to match dimensions
 
             self.optimizer.zero_grad(set_to_none=True)
 
@@ -88,7 +93,7 @@ class Trainer:
             loss: HybridLossItem = self.loss_fn(
                 embeddings=embeddings,
                 labels=labels,
-                original_input=inputs,
+                original_input=original_inputs,
                 reconstructed_input=reconstructions,
             )
 

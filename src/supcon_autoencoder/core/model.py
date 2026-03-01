@@ -79,7 +79,7 @@ def augment_samples_with_labels(
     augmentation_module: AugmentationModule,
     inputs: Tensor,
     labels: Tensor,
-) -> tuple[Tensor, Tensor]:
+) -> tuple[Tensor, Tensor, Tensor]:
     """Augment samples using the given augmentation module.
 
     Args:
@@ -88,18 +88,20 @@ def augment_samples_with_labels(
         labels: Label tensor (batch_size).
 
     Returns:
-        Augmented inputs and labels.
+        Augmented inputs, labels, and sample indices.
         inputs (batch_size * n_augmentations, ...),
-        labels (batch_size * n_augmentations).
+        labels (batch_size * n_augmentations),
+        sample_indices (batch_size * n_augmentations): Indices of the
+            corresponding original samples.
     """
     with torch.no_grad():
         augmentation_results = augmentation_module(inputs)
         augmented_inputs = augmentation_results["outputs"]
-        sample_labels = augmentation_results["sample_indices"]
+        sample_indices = augmentation_results["sample_indices"]
         augmented_labels = torch.tensor(
-            [labels[idx] for idx in sample_labels],
+            [labels[idx] for idx in sample_indices],
             dtype=labels.dtype,
             device=labels.device,
         )
 
-    return augmented_inputs, augmented_labels
+    return augmented_inputs, augmented_labels, sample_indices
