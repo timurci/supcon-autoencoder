@@ -15,6 +15,7 @@ from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
 from supcon_autoencoder.core.trackers import MLflowTracker, StandardLoggingTracker
 from supcon_autoencoder.core.training import Trainer
 
+from .augmentation import FashionMNISTAugmentation
 from .dataset import create_dataloader
 
 # Data parameters
@@ -107,8 +108,16 @@ def train() -> nn.Module:
         lambda_=HYBRID_LAMBDA,
     )
 
+    # Create augmentation module
+    augmentation_module = FashionMNISTAugmentation().to(DEVICE)
+
     # Create trainer
-    trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
+    trainer = Trainer(
+        model=model,
+        optimizer=optimizer,
+        loss_fn=loss_fn,
+        augmentation_module=augmentation_module,
+    )
 
     # Define parameters for tracking
     params = {
@@ -130,9 +139,7 @@ def train() -> nn.Module:
         StandardLoggingTracker(
             logger=logger, logging_interval=LOGGING_INTERVAL, experiment_steps=EPOCHS
         ) as logging_tracker,
-        MLflowTracker(
-            experiment_name="fashion-mnist-supcon-autoencoder"
-        ) as mlflow_tracker,
+        MLflowTracker(experiment_name="fashion-mnist-augmented") as mlflow_tracker,
     ):
         logging_tracker.log_params(params)
         mlflow_tracker.log_params(params)
