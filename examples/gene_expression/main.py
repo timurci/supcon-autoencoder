@@ -17,6 +17,7 @@ from supcon_autoencoder.core.training import Trainer
 if TYPE_CHECKING:
     from supcon_autoencoder.core.model import Autoencoder
 
+from .augmentation import GeneExpressionAugmentation
 from .config import (
     DataConfig,
     LossConfig,
@@ -92,6 +93,11 @@ def train(  # noqa: PLR0913
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=optimizer_config.learning_rate)
 
+    # Create augmentation module
+    augmentation_module = GeneExpressionAugmentation().to(
+        torch.device(training_loop_config.device)
+    )
+
     loss_fn = HybridLoss(
         sup_con_loss=SupConLoss(temperature=loss_config.supcon_temperature),
         reconstruction_loss=nn.MSELoss(),
@@ -102,6 +108,7 @@ def train(  # noqa: PLR0913
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
+        augmentation_module=augmentation_module,
     )
 
     logging_interval = training_loop_config.num_epochs // 10
@@ -109,6 +116,7 @@ def train(  # noqa: PLR0913
     params = {
         "training_data": Path(data_training_config.expression_file).name,
         "metadata": Path(data_training_config.metadata_file).name,
+        "augmentation": "gaussian + poisson",
         "batch_size": data_training_config.batch_size,
         "latent_dim": model_config.latent_dim,
         "hidden_dims": model_config.hidden_dims,
@@ -133,7 +141,7 @@ def train(  # noqa: PLR0913
             experiment_steps=training_loop_config.num_epochs,
         ) as logging_tracker,
         MLflowTracker(
-            experiment_name="gene-expression-supcon-autoencoder"
+            experiment_name="gene-expression-augmented-denoise"
         ) as mlflow_tracker,
     ):
         logging_tracker.log_params(params)
