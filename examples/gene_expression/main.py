@@ -10,9 +10,14 @@ import yaml
 from dec_torch.autoencoder import AutoEncoder
 from torch import nn
 
-from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
+from supcon_autoencoder.core.loss import (
+    JointContrastiveHybridLoss,
+    SupConLoss,
+)
 from supcon_autoencoder.core.trackers import MLflowTracker, StandardLoggingTracker
-from supcon_autoencoder.core.training import Trainer
+from supcon_autoencoder.core.training import (
+    JointContrastiveHybridLossTrainer,
+)
 
 if TYPE_CHECKING:
     from supcon_autoencoder.core.model import Autoencoder
@@ -98,13 +103,14 @@ def train(  # noqa: PLR0913
         torch.device(training_loop_config.device)
     )
 
-    loss_fn = HybridLoss(
-        sup_con_loss=SupConLoss(temperature=loss_config.supcon_temperature),
+    loss_fn = JointContrastiveHybridLoss(
+        supcon_loss=SupConLoss(temperature=loss_config.supcon_temperature),
+        self_supcon_loss=SupConLoss(temperature=loss_config.supcon_temperature),
         reconstruction_loss=nn.MSELoss(),
         lambda_=loss_config.hybrid_lambda,
     )
 
-    trainer = Trainer(
+    trainer = JointContrastiveHybridLossTrainer(
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
@@ -140,9 +146,7 @@ def train(  # noqa: PLR0913
             logging_interval=logging_interval,
             experiment_steps=training_loop_config.num_epochs,
         ) as logging_tracker,
-        MLflowTracker(
-            experiment_name="gene-expression-augmented-denoise"
-        ) as mlflow_tracker,
+        MLflowTracker(experiment_name="gene-expression-joint") as mlflow_tracker,
     ):
         logging_tracker.log_params(params)
         mlflow_tracker.log_params(params)
