@@ -15,6 +15,7 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 from umap import UMAP
@@ -233,9 +234,10 @@ def compute_projections(dataset: Dataset[Sample]) -> Projections:
     embeddings_list = [batch["features"] for batch in dataloader]
     embeddings = torch.cat(embeddings_list, dim=0).cpu().numpy()
 
-    # PCA projection
+    # PCA projection (with standard scaling)
+    scaled_embeddings = StandardScaler().fit_transform(embeddings)
     pca = PCA(n_components=2)
-    pca_proj = pca.fit_transform(embeddings)
+    pca_proj = pca.fit_transform(scaled_embeddings)
 
     # t-SNE projection
     tsne = TSNE(n_components=2)
@@ -273,7 +275,7 @@ def projection_plot(  # noqa: PLR0913
     fig, axes = plt.subplots(1, 3, figsize=figsize)
 
     methods = [
-        ("PCA", projections["pca"]),
+        ("Scaled PCA", projections["pca"]),
         ("t-SNE", projections["tsne"]),
         ("UMAP", projections["umap"]),
     ]
