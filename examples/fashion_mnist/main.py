@@ -11,9 +11,14 @@ import torch
 from dec_torch.autoencoder import AutoEncoder, AutoEncoderConfig
 from torch import nn
 
-from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
+from supcon_autoencoder.core.loss import (
+    JointContrastiveHybridLoss,
+    SupConLoss,
+)
 from supcon_autoencoder.core.trackers import MLflowTracker, StandardLoggingTracker
-from supcon_autoencoder.core.training import Trainer
+from supcon_autoencoder.core.training import (
+    JointContrastiveHybridLossTrainer,
+)
 
 from .augmentation import FashionMNISTAugmentation
 from .dataset import create_dataloader
@@ -102,8 +107,9 @@ def train() -> nn.Module:
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
     # Create loss function
-    loss_fn = HybridLoss(
-        sup_con_loss=SupConLoss(temperature=SUPCON_TEMPERATURE),
+    loss_fn = JointContrastiveHybridLoss(
+        supcon_loss=SupConLoss(temperature=SUPCON_TEMPERATURE),
+        self_supcon_loss=SupConLoss(temperature=SUPCON_TEMPERATURE),
         reconstruction_loss=nn.MSELoss(),
         lambda_=HYBRID_LAMBDA,
     )
@@ -112,7 +118,7 @@ def train() -> nn.Module:
     augmentation_module = FashionMNISTAugmentation().to(DEVICE)
 
     # Create trainer
-    trainer = Trainer(
+    trainer = JointContrastiveHybridLossTrainer(
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
@@ -139,7 +145,7 @@ def train() -> nn.Module:
         StandardLoggingTracker(
             logger=logger, logging_interval=LOGGING_INTERVAL, experiment_steps=EPOCHS
         ) as logging_tracker,
-        MLflowTracker(experiment_name="fashion-mnist-augmented") as mlflow_tracker,
+        MLflowTracker(experiment_name="fashion-mnist-joint") as mlflow_tracker,
     ):
         logging_tracker.log_params(params)
         mlflow_tracker.log_params(params)

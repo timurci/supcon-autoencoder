@@ -9,8 +9,17 @@ from torch import nn
 class HybridLossItem(TypedDict):
     """Contains reconstruction loss, contrastive loss, and hybrid loss."""
 
+    supcon_loss: float
     reconstruction_loss: float
-    contrastive_loss: float
+    hybrid_loss: torch.Tensor
+
+
+class JointContrastiveHybridLossItem(TypedDict):
+    """Contains contrastive loss and hybrid loss."""
+
+    supcon_loss: float
+    self_supcon_loss: float
+    reconstruction_loss: float
     hybrid_loss: torch.Tensor
 
 
@@ -33,10 +42,26 @@ class ReconstructionLossProtocol(Protocol):
 
 
 class SupConLossProtocol(Protocol):
-    """Protocol to lossly couple call signature of SupCon loss."""
+    """Protocol for a supervised contrastive loss function."""
 
     def __call__(self, embeddings: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """Compute the SupCon loss.
+        """Compute the supervised contrastive loss.
+
+        Args:
+            embeddings: Embeddings (batch_size, latent_dim).
+            labels: Labels (batch_size).
+
+        Returns:
+            torch.Tensor: The loss value (scalar).
+        """
+        ...
+
+
+class SelfSupConLossProtocol(Protocol):
+    """Protocol for a self-supervised contrastive loss function."""
+
+    def __call__(self, embeddings: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Compute the self-supervised contrastive loss.
 
         Args:
             embeddings: Embeddings (batch_size, latent_dim).
@@ -57,14 +82,14 @@ class HybridLoss(nn.Module):
 
     def __init__(
         self,
-        sup_con_loss: SupConLossProtocol,
+        supcon_loss: SupConLossProtocol,
         reconstruction_loss: ReconstructionLossProtocol,
         lambda_: float = 0.5,
     ) -> None:
         """Initialize hybrid loss, combining SupCon loss and reconstruction loss.
 
         Args:
-            sup_con_loss: SupCon (Supervised Contrastive) loss implementation.
+            supcon_loss: SupCon (Supervised Contrastive) loss implementation.
             reconstruction_loss: Reconstruction loss implementation.
             lambda_: Weight for the SupCon loss and (1 - lambda) for reconstruction.
         """
@@ -72,7 +97,7 @@ class HybridLoss(nn.Module):
         if not (0 <= lambda_ <= 1):
             msg = "lambda does not satisfy 0 <= lambda <= 1 condition"
             raise ValueError(msg)
-        self.sup_con_loss = sup_con_loss
+        self.supcon_loss = supcon_loss
         self.reconstruction_loss = reconstruction_loss
         self.lambda_ = lambda_
 
@@ -94,12 +119,75 @@ class HybridLoss(nn.Module):
         Returns:
             torch.Tensor: The hybrid loss value (scalar).
         """
-        sup_con = self.sup_con_loss(embeddings, labels)
+        sup_con = self.supcon_loss(embeddings, labels)
         recon = self.reconstruction_loss(original_input, reconstructed_input)
         hybrid_loss = self.lambda_ * sup_con + (1 - self.lambda_) * recon
         return {
             "reconstruction_loss": recon.item(),
-            "contrastive_loss": sup_con.item(),
+            "supcon_loss": sup_con.item(),
+            "hybrid_loss": hybrid_loss,
+        }
+
+
+class JointContrastiveHybridLoss(nn.Module):
+    """Loss function combining SupCon and SelfSupCon with reconstruction loss."""
+
+    def __init__(
+        self,
+        supcon_loss: SupConLoss,
+        self_supcon_loss: SelfSupConLossProtocol,
+        reconstruction_loss: nn.Module,
+        alpha: float = 0.5,
+        lambda_: float = 0.5,
+    ) -> None:
+        """Initialize JointHybridLoss.
+
+        Args:
+            supcon_loss: SupCon loss function.
+            self_supcon_loss: SelfSupCon loss function.
+            reconstruction_loss: Reconstruction loss function.
+            alpha: Weight for SelfSupCon loss against SupCon loss (0, 1).
+            lambda_: Weight for contrastive loss against reconstruction loss (0, 1).
+        """
+        super().__init__()
+        self.supcon_loss = supcon_loss
+        self.self_supcon_loss = self_supcon_loss
+        self.reconstruction_loss = reconstruction_loss
+        self.alpha = alpha
+        self.lambda_ = lambda_
+
+    def forward(
+        self,
+        embeddings: torch.Tensor,
+        labels: torch.Tensor,
+        sample_indices: torch.Tensor,
+        original_input: torch.Tensor,
+        reconstructed_input: torch.Tensor,
+    ) -> JointContrastiveHybridLossItem:
+        """Compute the joint hybrid loss.
+
+        Args:
+            embeddings: Embeddings for SupCon loss.
+            labels: Labels for SupCon loss.
+            sample_indices: Labels for SelfSupCon loss.
+            original_input: Original input tensor.
+            reconstructed_input: Reconstructed input tensor.
+
+        Returns:
+            torch.Tensor: The joint contrastive hybrid loss value (scalar).
+        """
+        supcon_loss = self.supcon_loss(embeddings, labels)
+        self_supcon_loss = self.self_supcon_loss(embeddings, sample_indices)
+        recon_loss = self.reconstruction_loss(original_input, reconstructed_input)
+
+        contrastive_loss = (
+            self.alpha * self_supcon_loss + (1 - self.alpha) * supcon_loss
+        )
+        hybrid_loss = self.lambda_ * contrastive_loss + (1 - self.lambda_) * recon_loss
+        return {
+            "supcon_loss": supcon_loss.item(),
+            "self_supcon_loss": self_supcon_loss.item(),
+            "reconstruction_loss": recon_loss.item(),
             "hybrid_loss": hybrid_loss,
         }
 
