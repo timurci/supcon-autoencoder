@@ -116,7 +116,7 @@ def train(  # noqa: PLR0913
     params = {
         "training_data": Path(data_training_config.expression_file).name,
         "metadata": Path(data_training_config.metadata_file).name,
-        "augmentation": "gaussian + poisson",
+        "augmentation": "gaussian",
         "batch_size": data_training_config.batch_size,
         "latent_dim": model_config.latent_dim,
         "hidden_dims": model_config.hidden_dims,

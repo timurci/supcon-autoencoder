@@ -94,8 +94,22 @@ class HybridLoss(nn.Module):
         Returns:
             torch.Tensor: The hybrid loss value (scalar).
         """
-        sup_con = self.sup_con_loss(embeddings, labels)
         recon = self.reconstruction_loss(original_input, reconstructed_input)
+        if self.lambda_ == 0:
+            return {
+                "reconstruction_loss": recon.item(),
+                "contrastive_loss": 0.0,
+                "hybrid_loss": recon,
+            }
+
+        sup_con = self.sup_con_loss(embeddings, labels)
+        if self.lambda_ == 1:
+            return {
+                "reconstruction_loss": 0.0,
+                "contrastive_loss": sup_con.item(),
+                "hybrid_loss": sup_con,
+            }
+
         hybrid_loss = self.lambda_ * sup_con + (1 - self.lambda_) * recon
         return {
             "reconstruction_loss": recon.item(),

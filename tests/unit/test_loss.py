@@ -10,6 +10,28 @@ from supcon_autoencoder.core.loss import HybridLoss, HybridLossItem, SupConLoss
 class TestHybridLoss:
     """Test suite for HybridLoss class."""
 
+    def test_lambda_zero_does_not_compute_supcon_loss(self) -> None:
+        """Test lambda=0 skips SupCon computation entirely."""
+
+        class FailingSupConLoss(nn.Module):
+            def forward(
+                self, _embeddings: torch.Tensor, _labels: torch.Tensor
+            ) -> torch.Tensor:
+                msg = "SupCon loss should not be computed"
+                raise AssertionError(msg)
+
+        embeddings = torch.randn(4, 3)
+        labels = torch.tensor([0, 0, 1, 1])
+        original = torch.randn(4, 5)
+        reconstructed = original + 0.1
+        recon_loss = nn.MSELoss()
+        hybrid = HybridLoss(FailingSupConLoss(), recon_loss, lambda_=0.0)
+
+        loss: HybridLossItem = hybrid(embeddings, labels, original, reconstructed)
+
+        assert loss["contrastive_loss"] == 0.0
+        assert torch.equal(loss["hybrid_loss"], recon_loss(original, reconstructed))
+
     def test_lambda_validation_error(self) -> None:
         """Test lambda validation raises ValueError for invalid values."""
         mock_sup = nn.MSELoss()
@@ -68,6 +90,121 @@ class TestHybridLoss:
         hybrid1 = HybridLoss(sup_loss, recon_loss, lambda_=1.0)
         loss1: HybridLossItem = hybrid1(embeddings, labels, original, reconstructed)
         assert abs(loss1["hybrid_loss"].item()) < 1e-6
+
+    def test_lambda_zero_matches_reconstruction_loss_and_gradients(self) -> None:
+        """Test lambda=0 is equivalent to reconstruction-only training."""
+        torch.manual_seed(42)
+        embeddings = torch.randn(6, 4, requires_grad=True)
+        decoder_weights = torch.randn(4, 3, requires_grad=True)
+        original = torch.randn(6, 3)
+        labels = torch.tensor([0, 0, 1, 1, 2, 2])
+
+        reconstructed = embeddings @ decoder_weights
+        recon_loss = nn.MSELoss()
+
+        plain_loss = recon_loss(original, reconstructed)
+        plain_loss.backward(retain_graph=True)
+        assert embeddings.grad is not None
+        assert decoder_weights.grad is not None
+        plain_embeddings_grad = embeddings.grad.detach().clone()
+        plain_decoder_weights_grad = decoder_weights.grad.detach().clone()
+
+        embeddings.grad.zero_()
+        decoder_weights.grad.zero_()
+
+        hybrid = HybridLoss(
+            sup_con_loss=SupConLoss(temperature=0.7),
+            reconstruction_loss=recon_loss,
+            lambda_=0.0,
+        )
+        hybrid_item: HybridLossItem = hybrid(
+            embeddings, labels, original, reconstructed
+        )
+        hybrid_item["hybrid_loss"].backward()
+
+        assert torch.isclose(hybrid_item["hybrid_loss"], plain_loss, atol=0, rtol=0)
+        assert embeddings.grad is not None
+        assert decoder_weights.grad is not None
+        assert torch.allclose(embeddings.grad, plain_embeddings_grad, atol=0, rtol=0)
+        assert torch.allclose(
+            decoder_weights.grad, plain_decoder_weights_grad, atol=0, rtol=0
+        )
+
+    def test_lambda_zero_zeroes_supcon_gradient_contribution(self) -> None:
+        """Test lambda=0 makes the SupCon branch contribute zero gradient."""
+        torch.manual_seed(42)
+        embeddings = torch.randn(6, 4, requires_grad=True)
+        labels = torch.tensor([0, 0, 1, 1, 2, 2])
+        original = torch.randn(6, 3)
+        reconstructed = torch.randn(6, 3, requires_grad=True)
+        recon_loss = nn.MSELoss()
+        sup_con_loss = SupConLoss(temperature=0.7)
+
+        sup_con = sup_con_loss(embeddings, labels)
+        sup_con_grad = torch.autograd.grad(sup_con, embeddings)[0]
+
+        hybrid = HybridLoss(
+            sup_con_loss=sup_con_loss,
+            reconstruction_loss=recon_loss,
+            lambda_=0.0,
+        )
+        hybrid_item: HybridLossItem = hybrid(
+            embeddings, labels, original, reconstructed
+        )
+        hybrid_embedding_grad = torch.autograd.grad(
+            hybrid_item["hybrid_loss"], embeddings, allow_unused=True
+        )[0]
+
+        assert not torch.allclose(sup_con_grad, torch.zeros_like(sup_con_grad))
+        assert hybrid_embedding_grad is None
+
+    def test_near_zero_lambda_stays_close_to_reconstruction_loss(self) -> None:
+        """Test tiny non-zero lambda only introduces a tiny contrastive contribution."""
+        embeddings = torch.tensor(
+            [
+                [1.0, 0.0],
+                [0.8, 0.2],
+                [0.0, 1.0],
+                [0.2, 0.8],
+            ],
+            requires_grad=True,
+        )
+        labels = torch.tensor([0, 0, 1, 1])
+        original = torch.tensor(
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+                [5.0, 6.0],
+                [7.0, 8.0],
+            ]
+        )
+        reconstructed = torch.tensor(
+            [
+                [1.1, 1.9],
+                [2.9, 4.1],
+                [5.1, 5.9],
+                [6.9, 8.1],
+            ],
+            requires_grad=True,
+        )
+        lambda_ = 1e-12
+        recon_loss = nn.MSELoss()
+        hybrid = HybridLoss(
+            sup_con_loss=SupConLoss(temperature=0.7),
+            reconstruction_loss=recon_loss,
+            lambda_=lambda_,
+        )
+
+        loss: HybridLossItem = hybrid(embeddings, labels, original, reconstructed)
+
+        expected = (
+            lambda_ * loss["contrastive_loss"]
+            + (1 - lambda_) * recon_loss(original, reconstructed).item()
+        )
+        assert loss["hybrid_loss"].item() == pytest.approx(expected)
+        assert loss["hybrid_loss"].item() == pytest.approx(
+            recon_loss(original, reconstructed).item(), abs=1e-10
+        )
 
     def test_hybrid_loss_numerical_exact(self) -> None:
         """Test hybrid loss with hardcoded values for exact numerical validation."""

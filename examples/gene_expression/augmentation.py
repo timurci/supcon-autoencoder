@@ -30,15 +30,16 @@ class GeneExpressionAugmentation(nn.Module):
         batch_size = x.size(0)
         device = x.device
 
-        # Augmentation 1: Gaussian noise
         aug1 = self._augment_gaussian_noise(x)
 
-        # Augmentation 2: Poisson noise
-        aug2 = self._augment_poisson_noise(x)
-
-        # Concatenate original and augmentations
-        outputs = torch.cat([x, aug1, aug2], dim=0)
-        sample_indices = torch.arange(batch_size, device=device).repeat(3)
+        outputs = torch.cat(
+            [
+                x,
+                aug1,
+            ],
+            dim=0,
+        )
+        sample_indices = torch.arange(batch_size, device=device).repeat(2)
 
         return {"outputs": outputs, "sample_indices": sample_indices}
 
