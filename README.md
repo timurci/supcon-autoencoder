@@ -17,6 +17,21 @@ SupCon Autoencoder integrates two complementary objectives:
 \mathcal{L} = \lambda \cdot \mathcal{L}_{\text{SupCon}} + (1 - \lambda) \cdot \mathcal{L}_{\text{reconstruction}}
 ```
 
+### Three-Phase Training Strategy
+
+To avoid embedding collapse during end-to-end hybrid-loss training, the gene-expression example uses a **staged pretraining schedule** with `StackedAutoEncoder` from `dec_torch`:
+
+1. **Phase 1 — Greedy Layer-wise Pretraining**  
+   Each layer of the `StackedAutoEncoder` is trained independently to reconstruct its input using pure MSE loss (`dec_torch`'s `greedy_fit`).
+
+2. **Phase 2 — Full Reconstruction Fine-tuning**  
+   The entire stacked autoencoder is fine-tuned end-to-end with MSE loss (`dec_torch`'s `fit`). The model is saved after this phase.
+
+3. **Phase 3 — Hybrid Loss Fine-tuning**  
+   The pretrained model is trained with the hybrid `SupCon + MSE` loss using the built-in `Trainer`. The final model is saved after this phase.
+
+Each phase is logged as a **separate MLflow run** that shares a common random readable name (e.g. `phase1-melodic-flea-33`, `phase2-melodic-flea-33`, `phase3-melodic-flea-33`).
+
 ### Using the Loss Function Independently
 
 You can use the loss functions without the built-in trainer. Just match the simple interface:

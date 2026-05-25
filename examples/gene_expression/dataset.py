@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 if TYPE_CHECKING:
     from supcon_autoencoder.core.data import Sample
@@ -128,4 +128,23 @@ def create_dataloader(data_config: DataConfig) -> DataLoader[Sample]:
 
     return DataLoader(
         dataset, batch_size=data_config.batch_size, shuffle=data_config.shuffle
+    )
+
+
+def create_tensor_dataloader(
+    data_config: DataConfig,
+) -> DataLoader:
+    """Create a dataloader yielding (features, features) for autoencoder training."""
+    labeled_dataset = LabeledGeneExpressionDataset(
+        expression_file=data_config.expression_file,
+        metadata_file=data_config.metadata_file,
+        id_column=data_config.id_column,
+        label_column=data_config.label_column,
+        label_encoder=LabelEncoder.from_json(data_config.label_encoder_file),
+    )
+    features = labeled_dataset.features
+    return DataLoader(
+        TensorDataset(features, features),
+        batch_size=data_config.batch_size,
+        shuffle=data_config.shuffle,
     )

@@ -9,6 +9,8 @@ class TrainingLoopConfig:
 
     num_epochs: int = 1000
     device: str = "cuda"
+    greedy_epochs: int = 100  # Phase 1
+    reconstruction_finetune_epochs: int = 100  # Phase 2
 
 
 @dataclass(frozen=True)
