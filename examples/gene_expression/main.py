@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from .augmentation import GeneExpressionAugmentation
 from .config import (
     DataConfig,
+    ExperimentTrackerConfig,
     LossConfig,
     ModelConfig,
     OptimizerConfig,
@@ -109,6 +110,7 @@ def train(  # noqa: PLR0913
     optimizer_config: OptimizerConfig,
     loss_config: LossConfig,
     training_loop_config: TrainingLoopConfig,
+    experiment_tracker_config: ExperimentTrackerConfig,
     data_training_config: DataConfig,
     data_validation_config: DataConfig | None = None,
     phase2_model_output: str | None = None,
@@ -120,6 +122,7 @@ def train(  # noqa: PLR0913
         optimizer_config: Optimizer configuration.
         loss_config: Loss configuration.
         training_loop_config: Training loop configuration.
+        experiment_tracker_config: Experiment tracker configuration.
         data_training_config: Training data configuration.
         data_validation_config: Validation data configuration.
         phase2_model_output: Optional path to save the Phase 2 model.
@@ -187,7 +190,7 @@ def train(  # noqa: PLR0913
             experiment_steps=training_loop_config.sae_greedy_epochs,
         ) as logging_tracker_p1,
         MLflowTracker(
-            experiment_name="gene-expression-augmented-denoise",
+            experiment_name=experiment_tracker_config.mlflow_experiment_name,
             run_name=f"phase1-{common_name}",
         ) as mlflow_tracker_p1,
     ):
@@ -215,7 +218,7 @@ def train(  # noqa: PLR0913
             experiment_steps=training_loop_config.sae_finetune_epochs,
         ) as logging_tracker_p2,
         MLflowTracker(
-            experiment_name="gene-expression-augmented-denoise",
+            experiment_name=experiment_tracker_config.mlflow_experiment_name,
             run_name=f"phase2-{common_name}",
         ) as mlflow_tracker_p2,
     ):
@@ -247,7 +250,7 @@ def train(  # noqa: PLR0913
             experiment_steps=training_loop_config.supcon_hybrid_epochs,
         ) as logging_tracker_p3,
         MLflowTracker(
-            experiment_name="gene-expression-augmented-denoise",
+            experiment_name=experiment_tracker_config.mlflow_experiment_name,
             run_name=f"phase3-{common_name}",
         ) as mlflow_tracker_p3,
     ):
@@ -285,6 +288,9 @@ if __name__ == "__main__":
     optimizer_config = OptimizerConfig(**training_yaml["optimizer"])
     loss_config = LossConfig(**training_yaml["loss"])
     training_loop_config = TrainingLoopConfig(**training_yaml["training_loop"])
+    experiment_tracker_config = ExperimentTrackerConfig(
+        **training_yaml["experiment_tracker"]
+    )
 
     data_training_config = DataConfig(**data_yaml["data"]["training"])
     data_validation_config = None
@@ -296,6 +302,7 @@ if __name__ == "__main__":
         optimizer_config,
         loss_config,
         training_loop_config,
+        experiment_tracker_config,
         data_training_config,
         data_validation_config,
         phase2_model_output=args.phase2_model_output,

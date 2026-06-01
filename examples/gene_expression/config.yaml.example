@@ -28,14 +28,17 @@ model:
   hidden_activation: "relu" # hidden layer activation
 
 training_loop:
-  supcon_hybrid_epochs: 1000  # Phase 3: SupCon + reconstruction
+  supcon_hybrid_epochs: 5000  # Phase 3: SupCon + reconstruction
   device: "cuda"
-  sae_greedy_epochs: 100      # Phase 1: SAE greedy layerwise
-  sae_finetune_epochs: 100    # Phase 2: SAE full fine-tuning
+  sae_greedy_epochs: 5000  # Phase 1: SAE greedy layerwise
+  sae_finetune_epochs: 200  # Phase 2: SAE full fine-tuning
 
 optimizer:
   # AdamW
   learning_rate: 0.01
+
+experiment_tracker:
+  mlflow_experiment_name: "gene-expression-augmented-denoise"
 
 loss:
   # Hybrid loss: (lambda) * supcon_loss + (1-lambda) * reconstruction_loss

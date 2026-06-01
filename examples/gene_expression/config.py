@@ -4,6 +4,13 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ExperimentTrackerConfig:
+    """Configuration for experiment tracking."""
+
+    mlflow_experiment_name: str
+
+
+@dataclass(frozen=True)
 class TrainingLoopConfig:
     """Configuration for training loop."""
 
