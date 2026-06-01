@@ -93,11 +93,9 @@ def _build_params(  # noqa: PLR0913
         "learning_rate": optimizer_config.learning_rate,
         "supcon_temperature": loss_config.supcon_temperature,
         "hybrid_lambda": loss_config.hybrid_lambda,
-        "num_epochs": training_loop_config.num_epochs,
-        "greedy_epochs": training_loop_config.greedy_epochs,
-        "reconstruction_finetune_epochs": (
-            training_loop_config.reconstruction_finetune_epochs
-        ),
+        "supcon_hybrid_epochs": training_loop_config.supcon_hybrid_epochs,
+        "sae_greedy_epochs": training_loop_config.sae_greedy_epochs,
+        "sae_finetune_epochs": (training_loop_config.sae_finetune_epochs),
     }
 
     if data_validation_config is not None:
@@ -185,8 +183,8 @@ def train(  # noqa: PLR0913
     with (
         StandardLoggingTracker(
             logger=logger,
-            logging_interval=training_loop_config.greedy_epochs // 10,
-            experiment_steps=training_loop_config.greedy_epochs,
+            logging_interval=training_loop_config.sae_greedy_epochs // 10,
+            experiment_steps=training_loop_config.sae_greedy_epochs,
         ) as logging_tracker_p1,
         MLflowTracker(
             experiment_name="gene-expression-augmented-denoise",
@@ -205,7 +203,7 @@ def train(  # noqa: PLR0913
             optimizer=optimizer,
             train_loader=tensor_train_loader,
             val_loader=tensor_val_loader,
-            greedy_epochs=training_loop_config.greedy_epochs,
+            sae_greedy_epochs=training_loop_config.sae_greedy_epochs,
             experiment_trackers=experiment_trackers_p1,
         )
 
@@ -213,8 +211,8 @@ def train(  # noqa: PLR0913
     with (
         StandardLoggingTracker(
             logger=logger,
-            logging_interval=training_loop_config.reconstruction_finetune_epochs // 10,
-            experiment_steps=training_loop_config.reconstruction_finetune_epochs,
+            logging_interval=training_loop_config.sae_finetune_epochs // 10,
+            experiment_steps=training_loop_config.sae_finetune_epochs,
         ) as logging_tracker_p2,
         MLflowTracker(
             experiment_name="gene-expression-augmented-denoise",
@@ -233,7 +231,7 @@ def train(  # noqa: PLR0913
             optimizer=optimizer,
             train_loader=tensor_train_loader,
             val_loader=tensor_val_loader,
-            reconstruction_finetune_epochs=training_loop_config.reconstruction_finetune_epochs,
+            sae_finetune_epochs=training_loop_config.sae_finetune_epochs,
             experiment_trackers=experiment_trackers_p2,
         )
 
@@ -245,8 +243,8 @@ def train(  # noqa: PLR0913
     with (
         StandardLoggingTracker(
             logger=logger,
-            logging_interval=training_loop_config.num_epochs // 10,
-            experiment_steps=training_loop_config.num_epochs,
+            logging_interval=training_loop_config.supcon_hybrid_epochs // 10,
+            experiment_steps=training_loop_config.supcon_hybrid_epochs,
         ) as logging_tracker_p3,
         MLflowTracker(
             experiment_name="gene-expression-augmented-denoise",
@@ -264,7 +262,7 @@ def train(  # noqa: PLR0913
         trainer.train(
             train_loader=training_loader,
             device=torch.device(training_loop_config.device),
-            epochs=training_loop_config.num_epochs,
+            epochs=training_loop_config.supcon_hybrid_epochs,
             val_loader=validation_loader,
             experiment_trackers=experiment_trackers_p3,
         )

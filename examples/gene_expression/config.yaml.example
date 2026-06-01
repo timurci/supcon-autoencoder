@@ -28,8 +28,10 @@ model:
   hidden_activation: "relu" # hidden layer activation
 
 training_loop:
-  num_epochs: 1000
+  supcon_hybrid_epochs: 1000  # Phase 3: SupCon + reconstruction
   device: "cuda"
+  sae_greedy_epochs: 100      # Phase 1: SAE greedy layerwise
+  sae_finetune_epochs: 100    # Phase 2: SAE full fine-tuning
 
 optimizer:
   # AdamW

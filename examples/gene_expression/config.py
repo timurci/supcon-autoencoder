@@ -7,10 +7,10 @@ from dataclasses import dataclass
 class TrainingLoopConfig:
     """Configuration for training loop."""
 
-    num_epochs: int = 1000
+    supcon_hybrid_epochs: int = 1000  # Phase 3: SupCon + reconstruction
     device: str = "cuda"
-    greedy_epochs: int = 100  # Phase 1
-    reconstruction_finetune_epochs: int = 100  # Phase 2
+    sae_greedy_epochs: int = 100  # Phase 1: SAE greedy layerwise
+    sae_finetune_epochs: int = 100  # Phase 2: SAE full fine-tuning
 
 
 @dataclass(frozen=True)
