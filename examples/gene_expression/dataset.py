@@ -134,7 +134,7 @@ def create_dataloader(data_config: DataConfig) -> DataLoader[Sample]:
 def create_tensor_dataloader(
     data_config: DataConfig,
 ) -> DataLoader:
-    """Create a dataloader yielding (features, features) for autoencoder training."""
+    """Create a dataloader yielding single tensors for autoencoder training."""
     labeled_dataset = LabeledGeneExpressionDataset(
         expression_file=data_config.expression_file,
         metadata_file=data_config.metadata_file,
@@ -144,7 +144,7 @@ def create_tensor_dataloader(
     )
     features = labeled_dataset.features
     return DataLoader(
-        TensorDataset(features, features),
+        TensorDataset(features),
         batch_size=data_config.batch_size,
         shuffle=data_config.shuffle,
     )
