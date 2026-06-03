@@ -51,11 +51,6 @@ def build_parser() -> ArgumentParser:
         "--model-output", required=True, help="Path to save the Phase 3 trained model."
     )
     parser.add_argument(
-        "--phase2-model-output",
-        default=None,
-        help="Path to save the Phase 2 reconstruction-finetuned model.",
-    )
-    parser.add_argument(
         "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     return parser
@@ -112,8 +107,8 @@ def train(  # noqa: PLR0913
     training_loop_config: TrainingLoopConfig,
     experiment_tracker_config: ExperimentTrackerConfig,
     data_training_config: DataConfig,
+    phase2_model_output: str,
     data_validation_config: DataConfig | None = None,
-    phase2_model_output: str | None = None,
 ) -> Autoencoder:
     """Train a SupCon autoencoder model.
 
@@ -125,7 +120,7 @@ def train(  # noqa: PLR0913
         experiment_tracker_config: Experiment tracker configuration.
         data_training_config: Training data configuration.
         data_validation_config: Validation data configuration.
-        phase2_model_output: Optional path to save the Phase 2 model.
+        phase2_model_output: Path to save the Phase 2 model.
 
     Returns:
         Trained autoencoder model
@@ -238,9 +233,8 @@ def train(  # noqa: PLR0913
             experiment_trackers=experiment_trackers_p2,
         )
 
-        if phase2_model_output is not None:
-            model.save(phase2_model_output)
-            logger.info("Phase 2 model saved to %s", phase2_model_output)
+        model.save(phase2_model_output)
+        logger.info("Phase 2 model saved to %s", phase2_model_output)
 
     # Phase 3
     with (
@@ -304,8 +298,8 @@ if __name__ == "__main__":
         training_loop_config,
         experiment_tracker_config,
         data_training_config,
-        data_validation_config,
-        phase2_model_output=args.phase2_model_output,
+        phase2_model_output=args.model_output.replace(".pth", "_phase2.pth"),
+        data_validation_config=data_validation_config,
     )
 
     if isinstance(model, (AutoEncoder, StackedAutoEncoder)):

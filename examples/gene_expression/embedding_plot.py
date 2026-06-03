@@ -14,13 +14,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 import torch
+from dec_torch.autoencoder import StackedAutoEncoder
 from matplotlib import pyplot as plt
 from utils.embedding_plot import (  # type: ignore[import-not-found]
     analyze_embeddings,
     compute_embeddings,
     compute_projections,
     ground_truth_score,
-    load_model,
     projection_plot,
     train_kmeans,
 )
@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
     # Load trained model
     device = torch.device(args.device)
-    model = load_model(args.model_path, device)
+    model = StackedAutoEncoder.load(args.model_path, map_location=device)
 
     # Compute training embeddings
     logger.info("Computing training embeddings...")

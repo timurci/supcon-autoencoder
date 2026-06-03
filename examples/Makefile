@@ -19,7 +19,7 @@ FASHION_MNIST_EMBEDDING_SEED :=
 
 LOG_LEVEL := INFO
 
-.PHONY: all gene_expression fashion_mnist train_gene_expression train_fashion_mnist embedding_plot_gene_expression embedding_plot_fashion_mnist clean
+.PHONY: all gene_expression fashion_mnist train_gene_expression train_fashion_mnist embedding_plot_gene_expression embedding_plot_gene_expression_phase2 embedding_plot_fashion_mnist clean
 
 all: gene_expression fashion_mnist
 
@@ -55,6 +55,15 @@ embedding_plot_gene_expression:
 	$(if $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE)) \
 	$(if $(GENE_EXPRESSION_EMBEDDING_SEED),--seed $(GENE_EXPRESSION_EMBEDDING_SEED)) \
 	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections.png
+
+embedding_plot_gene_expression_phase2:
+	@uv run -m gene_expression.embedding_plot \
+	--data-config $(GENE_EXPRESSION_OUTPUT_DIR)/config.data.yaml \
+	--model-path $(GENE_EXPRESSION_OUTPUT_DIR)/model_phase2.pth \
+	--device $(GENE_EXPRESSION_EMBEDDING_DEVICE) \
+	$(if $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE)) \
+	$(if $(GENE_EXPRESSION_EMBEDDING_SEED),--seed $(GENE_EXPRESSION_EMBEDDING_SEED)) \
+	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections_phase2.png
 
 embedding_plot_fashion_mnist:
 	@uv run -m fashion_mnist.embedding_plot \
