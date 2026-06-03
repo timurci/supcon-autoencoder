@@ -17,11 +17,11 @@ import torch
 from dec_torch.autoencoder import StackedAutoEncoder
 from matplotlib import pyplot as plt
 from utils.embedding_plot import (  # type: ignore[import-not-found]
+    EmbeddingDataset,
     analyze_embeddings,
     compute_embeddings,
-    compute_projections,
+    generate_projection_figure,
     ground_truth_score,
-    projection_plot,
     train_kmeans,
 )
 
@@ -81,6 +81,23 @@ def build_parser() -> ArgumentParser:
         help="Display the projection plot interactively.",
     )
     return parser
+
+
+def _labels_to_names(
+    embeddings_dataset: EmbeddingDataset,
+    label_map: dict[int, str],
+) -> np.ndarray:
+    """Convert numeric labels from embeddings to string names using label map.
+
+    Args:
+        embeddings_dataset: Dataset with .labels attribute containing numeric labels.
+        label_map: Mapping from numeric label to string name.
+
+    Returns:
+        Array of string label names.
+    """
+    labels_numeric = embeddings_dataset.labels.cpu().numpy()
+    return np.array([label_map[int(label)] for label in labels_numeric])
 
 
 if __name__ == "__main__":
@@ -189,32 +206,33 @@ if __name__ == "__main__":
             validation_scores["nmi"],
         )
 
-    # Compute 2D projections (training only)
-    logger.info("Computing 2D projections (PCA, t-SNE, UMAP)...")
-    projections = compute_projections(training_embeddings)
-    logger.info("2D projections computed")
-    training_labels_numeric = training_embeddings.labels.cpu().numpy()
-
     # Convert numeric labels to string labels using label encoder
     label_encoder = LabelEncoder.from_json(data_training_config.label_encoder_file)
     label_map: dict[int, str] = label_encoder.__reversed__()
-    training_labels = np.array(
-        [label_map[int(label)] for label in training_labels_numeric]
-    )
 
-    # Create projection plot
-    logger.info("Creating projection plot...")
-    fig = projection_plot(
-        projections,
+    # Generate combined projection figure
+    logger.info("Computing 2D projections (PCA, t-SNE, UMAP)...")
+    training_labels = _labels_to_names(training_embeddings, label_map)
+
+    validation_labels = None
+    if validation_embeddings is not None:
+        validation_labels = _labels_to_names(validation_embeddings, label_map)
+
+    fig = generate_projection_figure(
+        training_embeddings,
         training_labels,
         training_scores,
         validation_scores,
+        validation_embedding_dataset=validation_embeddings,
+        validation_labels=validation_labels,
+        title="2D Projections of the Embeddings",
     )
-    logger.info("Projection plot created")
+    logger.info("Projection figure created")
 
     # Save projection plot if output path provided
     if args.projection_output is not None:
         fig.savefig(args.projection_output, dpi=300, bbox_inches="tight")
+        logger.info("Projection plot saved to %s", args.projection_output)
 
     # Show projection plot if requested
     if args.show:

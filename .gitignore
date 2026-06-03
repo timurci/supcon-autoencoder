@@ -15,6 +15,7 @@ uv.lock
 *.pt
 *.pth
 *.png
+*.jpg
 *.log
 examples/**/*.yaml
 examples/**/*.json

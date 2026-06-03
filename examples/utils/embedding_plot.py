@@ -14,7 +14,11 @@ from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+from sklearn.metrics import (
+    adjusted_rand_score,
+    normalized_mutual_info_score,
+    silhouette_score,
+)
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
@@ -45,6 +49,9 @@ class ClusteringScores(TypedDict):
 
     nmi: float
     """Normalized Mutual Information score."""
+
+    silhouette: float
+    """Silhouette score measuring cluster separation quality."""
 
 
 class Projections(TypedDict):
@@ -217,8 +224,9 @@ def ground_truth_score(
 
     ari = adjusted_rand_score(true_labels, predicted_labels)
     nmi = normalized_mutual_info_score(true_labels, predicted_labels)
+    silhouette = silhouette_score(embeddings, true_labels)
 
-    return ClusteringScores(ari=ari, nmi=nmi)
+    return ClusteringScores(ari=ari, nmi=nmi, silhouette=silhouette)
 
 
 def compute_projections(dataset: Dataset[Sample]) -> Projections:
@@ -255,24 +263,42 @@ def projection_plot(  # noqa: PLR0913
     labels: np.ndarray,
     training_scores: ClusteringScores,
     validation_scores: ClusteringScores | None = None,
+    validation_projections: Projections | None = None,
+    validation_labels: np.ndarray | None = None,
     title: str = "2D Projections of the Embeddings",
-    figsize: tuple[int, int] = (18, 6),
+    figsize: tuple[int, int] | None = None,
 ) -> Figure:
-    """Create a figure with three 2D projection plots.
+    """Create a figure with 2D projection plots for training and optionally validation.
+
+    When validation_projections and validation_labels are provided, creates a 2x3 grid
+    with training projections on top and validation projections on bottom. Otherwise,
+    creates a single row of 3 plots.
 
     Args:
-        projections: Projections containing PCA, t-SNE, and UMAP projections.
-        labels: Array of true labels for hue coloring.
+        projections: Projections containing PCA, t-SNE, and UMAP projections for
+            training.
+        labels: Array of true labels for hue coloring (training).
         training_scores: Clustering scores for training set.
         validation_scores: Clustering scores for validation set (if available).
+        validation_projections: Projections for validation set (if available).
+        validation_labels: Array of labels for validation set (if available).
         title: Main title for the figure. Defaults to
             "2D Projections of the Embeddings".
-        figsize: Figure size as (width, height) in inches. Defaults to (18, 6).
+        figsize: Figure size as (width, height) in inches. Defaults to (18, 6) for
+            training only, or (18, 12) when validation is included.
 
     Returns:
-        The Figure object containing the three projection subplots.
+        The Figure object containing the projection subplots.
     """
-    fig, axes = plt.subplots(1, 3, figsize=figsize)
+    has_validation = (
+        validation_projections is not None and validation_labels is not None
+    )
+
+    if figsize is None:
+        figsize = (18, 12) if has_validation else (18, 6)
+
+    nrows = 2 if has_validation else 1
+    fig, axes = plt.subplots(nrows, 3, figsize=figsize, squeeze=False)
 
     methods = [
         ("Scaled PCA", projections["pca"]),
@@ -280,7 +306,8 @@ def projection_plot(  # noqa: PLR0913
         ("UMAP", projections["umap"]),
     ]
 
-    for ax, (method_name, proj) in zip(axes, methods, strict=True):
+    # Plot training projections
+    for ax, (method_name, proj) in zip(axes[0], methods, strict=True):
         sns.scatterplot(
             x=proj[:, 0],
             y=proj[:, 1],
@@ -294,21 +321,103 @@ def projection_plot(  # noqa: PLR0913
         ax.set_xlabel("Component 1", fontsize=10)
         ax.set_ylabel("Component 2", fontsize=10)
         ax.grid(visible=True, linestyle="--", alpha=0.3)
+    axes[0, 0].set_ylabel(
+        "Training", fontsize=11, fontweight="bold", rotation=90, labelpad=10
+    )
+
+    # Plot validation projections if provided
+    if has_validation:
+        validation_methods = [
+            ("Scaled PCA", validation_projections["pca"]),
+            ("t-SNE", validation_projections["tsne"]),
+            ("UMAP", validation_projections["umap"]),
+        ]
+        for ax, (method_name, proj) in zip(axes[1], validation_methods, strict=True):
+            sns.scatterplot(
+                x=proj[:, 0],
+                y=proj[:, 1],
+                hue=validation_labels,
+                ax=ax,
+                palette="tab10",
+                legend="full",
+                alpha=0.7,
+            )
+            ax.set_title(f"{method_name} Projection", fontsize=12, fontweight="bold")
+            ax.set_xlabel("Component 1", fontsize=10)
+            ax.set_ylabel("Component 2", fontsize=10)
+            ax.grid(visible=True, linestyle="--", alpha=0.3)
+        axes[1, 0].set_ylabel(
+            "Validation", fontsize=11, fontweight="bold", rotation=90, labelpad=10
+        )
 
     # Build score text
     score_text = (
-        f"Training ARI: {training_scores['ari']:.3f}, NMI: {training_scores['nmi']:.3f}"
+        f"Training ARI: {training_scores['ari']:.3f}, "
+        f"NMI: {training_scores['nmi']:.3f}, "
+        f"Sil: {training_scores['silhouette']:.3f}"
     )
     if validation_scores is not None:
         score_text += (
             f" | Validation ARI: {validation_scores['ari']:.3f}, "
-            f"NMI: {validation_scores['nmi']:.3f}"
+            f"NMI: {validation_scores['nmi']:.3f}, "
+            f"Sil: {validation_scores['silhouette']:.3f}"
         )
 
     fig.suptitle(f"{title}\n{score_text}", fontsize=14, fontweight="bold", y=0.98)
     plt.tight_layout()
 
     return fig
+
+
+def generate_projection_figure(  # noqa: PLR0913
+    embedding_dataset: Dataset[Sample],
+    labels: np.ndarray,
+    training_scores: ClusteringScores,
+    validation_scores: ClusteringScores | None = None,
+    validation_embedding_dataset: Dataset[Sample] | None = None,
+    validation_labels: np.ndarray | None = None,
+    title: str = "2D Projections of the Embeddings",
+    figsize: tuple[int, int] | None = None,
+) -> Figure:
+    """Compute 2D projections and create a projection plot figure.
+
+    This is a convenience function that combines compute_projections() and
+    projection_plot() into a single call. When validation_embedding_dataset and
+    validation_labels are provided, creates a combined figure with training and
+    validation projections.
+
+    Args:
+        embedding_dataset: Dataset containing embeddings to project (training).
+        labels: Array of labels for hue coloring (training).
+        training_scores: Clustering scores for training set.
+        validation_scores: Clustering scores for validation set (if available).
+        validation_embedding_dataset: Dataset containing validation embeddings to
+            project.
+        validation_labels: Array of labels for validation set (if available).
+        title: Main title for the figure. Defaults to
+            "2D Projections of the Embeddings".
+        figsize: Figure size as (width, height) in inches. Defaults to (18, 6) for
+            training only, or (18, 12) when validation is included.
+
+    Returns:
+        The Figure object containing the projection subplots.
+    """
+    projections = compute_projections(embedding_dataset)
+
+    validation_projections = None
+    if validation_embedding_dataset is not None:
+        validation_projections = compute_projections(validation_embedding_dataset)
+
+    return projection_plot(
+        projections,
+        labels,
+        training_scores,
+        validation_scores,
+        validation_projections=validation_projections,
+        validation_labels=validation_labels,
+        title=title,
+        figsize=figsize,
+    )
 
 
 def analyze_embeddings(

@@ -75,5 +75,5 @@ make gene_expression
 Each example generates:
 - `model.pth` — Trained autoencoder weights
 - `loss_history.parquet` — Training/validation metrics
-- `loss_plot.png` — Loss curve visualization
-- `embedding_projections.png` — 2D projections (PCA, t-SNE, UMAP)
+- `loss_plot.jpg` — Loss curve visualization
+- `embedding_projections.jpg` — 2D projections (PCA, t-SNE, UMAP)

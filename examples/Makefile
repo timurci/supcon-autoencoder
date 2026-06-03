@@ -54,7 +54,7 @@ embedding_plot_gene_expression:
 	--device $(GENE_EXPRESSION_EMBEDDING_DEVICE) \
 	$(if $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE)) \
 	$(if $(GENE_EXPRESSION_EMBEDDING_SEED),--seed $(GENE_EXPRESSION_EMBEDDING_SEED)) \
-	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections.png
+	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections.jpg
 
 embedding_plot_gene_expression_phase2:
 	@uv run -m gene_expression.embedding_plot \
@@ -63,12 +63,12 @@ embedding_plot_gene_expression_phase2:
 	--device $(GENE_EXPRESSION_EMBEDDING_DEVICE) \
 	$(if $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE)) \
 	$(if $(GENE_EXPRESSION_EMBEDDING_SEED),--seed $(GENE_EXPRESSION_EMBEDDING_SEED)) \
-	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections_phase2.png
+	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections_phase2.jpg
 
 embedding_plot_fashion_mnist:
 	@uv run -m fashion_mnist.embedding_plot \
 	--model-path $(FASHION_MNIST_OUTPUT_DIR)/fashion_mnist_autoencoder.pt \
-	--projection-output $(FASHION_MNIST_OUTPUT_DIR)/embedding_projections.png
+	--projection-output $(FASHION_MNIST_OUTPUT_DIR)/embedding_projections.jpg
 
 clean:
 	rm -rf $(GENE_EXPRESSION_OUTPUT_DIR)
