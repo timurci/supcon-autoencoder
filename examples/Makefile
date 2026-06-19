@@ -19,7 +19,7 @@ FASHION_MNIST_EMBEDDING_SEED :=
 
 LOG_LEVEL := INFO
 
-.PHONY: all gene_expression fashion_mnist train_gene_expression train_fashion_mnist embedding_plot_gene_expression embedding_plot_gene_expression_phase2 embedding_plot_fashion_mnist clean
+.PHONY: all gene_expression fashion_mnist train_gene_expression train_fashion_mnist embedding_plot_gene_expression embedding_plot_gene_expression_phase2 embedding_plot_fashion_mnist embeddings_parquet_gene_expression embeddings_parquet_gene_expression_phase2 clean
 
 all: gene_expression fashion_mnist
 
@@ -64,6 +64,25 @@ embedding_plot_gene_expression_phase2:
 	$(if $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE),--rand-subset-size $(GENE_EXPRESSION_EMBEDDING_RAND_SUBSET_SIZE)) \
 	$(if $(GENE_EXPRESSION_EMBEDDING_SEED),--seed $(GENE_EXPRESSION_EMBEDDING_SEED)) \
 	--projection-output $(GENE_EXPRESSION_OUTPUT_DIR)/embedding_projections_phase2.jpg
+
+# Embedding parquet rules
+embeddings_parquet_gene_expression:
+	@uv run -m gene_expression.embeddings_to_dataframe \
+	--data-config $(GENE_EXPRESSION_OUTPUT_DIR)/config.data.yaml \
+	--model-path $(GENE_EXPRESSION_OUTPUT_DIR)/model.pth \
+	--device $(GENE_EXPRESSION_EMBEDDING_DEVICE) \
+	--split both \
+	--output $(GENE_EXPRESSION_OUTPUT_DIR)/embeddings.parquet \
+	--log-level $(LOG_LEVEL)
+
+embeddings_parquet_gene_expression_phase2:
+	@uv run -m gene_expression.embeddings_to_dataframe \
+	--data-config $(GENE_EXPRESSION_OUTPUT_DIR)/config.data.yaml \
+	--model-path $(GENE_EXPRESSION_OUTPUT_DIR)/model_phase2.pth \
+	--device $(GENE_EXPRESSION_EMBEDDING_DEVICE) \
+	--split both \
+	--output $(GENE_EXPRESSION_OUTPUT_DIR)/embeddings_phase2.parquet \
+	--log-level $(LOG_LEVEL)
 
 embedding_plot_fashion_mnist:
 	@uv run -m fashion_mnist.embedding_plot \
