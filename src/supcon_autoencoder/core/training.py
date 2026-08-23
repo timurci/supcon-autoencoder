@@ -4,12 +4,16 @@ import logging
 from typing import TYPE_CHECKING, NamedTuple
 
 import torch
+from torch.nn.utils import get_total_norm
 
 from supcon_autoencoder.core.trackers import ExperimentTracker, Phase
 
 from .model import Autoencoder, augment_samples_with_labels
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from torch import nn
     from torch.optim import Optimizer
     from torch.utils.data import DataLoader
 
@@ -24,11 +28,37 @@ logger = logging.getLogger(__name__)
 
 
 class LossItem(NamedTuple):
-    """Loss dictionary for training."""
+    """Loss dictionary for validation."""
 
     reconstruction_loss: float
     contrastive_loss: float
     hybrid_loss: float
+
+
+class TrainMetrics(NamedTuple):
+    """Metrics collected over a training epoch."""
+
+    reconstruction_loss: float
+    contrastive_loss: float
+    hybrid_loss: float
+    grad_norm_mean: float
+    grad_norm_max: float
+
+
+def _compute_grad_norm(parameters: Iterable[nn.Parameter]) -> float:
+    """Compute the total L2 norm of gradients across the given parameters.
+
+    Args:
+        parameters: Model parameters whose gradients are measured.
+
+    Returns:
+        float: Total L2 norm of all parameter gradients, or 0.0 if no
+            gradients are present.
+    """
+    grads = [p.grad for p in parameters if p.grad is not None]
+    if not grads:
+        return 0.0
+    return get_total_norm(grads).item()
 
 
 class Trainer:
@@ -56,7 +86,7 @@ class Trainer:
 
     def _train_epoch(
         self, loader: DataLoader[Sample], device: torch.device
-    ) -> LossItem:
+    ) -> TrainMetrics:
         """Run one training epoch over the dataset.
 
         Args:
@@ -64,13 +94,17 @@ class Trainer:
             device: Device to load data onto.
 
         Returns:
-            float: Average loss over the epoch.
+            TrainMetrics: Average losses and gradient norm statistics
+                over the epoch.
         """
         self.model.train()
         total_supcon_loss = 0.0
         total_recon_loss = 0.0
         total_hybrid_loss = 0.0
+        total_grad_norm = 0.0
+        max_grad_norm = 0.0
         total_samples = 0
+        num_batches = 0
         for batch in loader:
             inputs: torch.Tensor = batch["features"].to(device)
             labels: torch.Tensor = batch["labels"].to(device)
@@ -98,6 +132,12 @@ class Trainer:
             )
 
             loss["hybrid_loss"].backward()
+
+            grad_norm = _compute_grad_norm(self.model.parameters())
+            total_grad_norm += grad_norm
+            max_grad_norm = max(max_grad_norm, grad_norm)
+            num_batches += 1
+
             self.optimizer.step()
 
             batch_size = inputs.size(0)
@@ -106,10 +146,12 @@ class Trainer:
             total_hybrid_loss += loss["hybrid_loss"].item() * batch_size
             total_samples += batch_size
 
-        return LossItem(
+        return TrainMetrics(
             contrastive_loss=total_supcon_loss / total_samples,
             reconstruction_loss=total_recon_loss / total_samples,
             hybrid_loss=total_hybrid_loss / total_samples,
+            grad_norm_mean=total_grad_norm / num_batches,
+            grad_norm_max=max_grad_norm,
         )
 
     def _validate_epoch(
@@ -174,10 +216,10 @@ class Trainer:
         """
         experiment_trackers = experiment_trackers or []
         for epoch in range(epochs):
-            train_loss = self._train_epoch(train_loader, device)
+            train_metrics = self._train_epoch(train_loader, device)
             for tracker in experiment_trackers:
                 tracker.log_metrics(
-                    phase=Phase.TRAIN, step=epoch + 1, metrics=train_loss._asdict()
+                    phase=Phase.TRAIN, step=epoch + 1, metrics=train_metrics._asdict()
                 )
             val_loss = None
             if val_loader is not None:
