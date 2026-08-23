@@ -49,7 +49,7 @@ class MyAutoencoder(nn.Module):
 ```python
 sample = {
     "features": torch.Tensor,  # Input data
-    "labels": torch.Tensor,    # Class labels
+    "labels": torch.Tensor,  # Class labels
 }
 ```
 
@@ -62,11 +62,30 @@ from supcon_autoencoder.core.training import Trainer
 loss_fn = HybridLoss(
     sup_con_loss=SupConLoss(temperature=0.5),
     reconstruction_loss=nn.MSELoss(),
-    lambda_=0.5
+    lambda_=0.5,
 )
 
 trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
 history = trainer.train(train_loader=train_loader, device=device, epochs=50)
+```
+
+## Checkpointing
+
+Pass checkpointers to the trainer to save `latest.pt` after every epoch and
+`best.pt` whenever the monitored validation metric improves:
+
+```python
+from supcon_autoencoder.core.checkpoints import LocalCheckpointer
+
+checkpointer = LocalCheckpointer("checkpoints/", monitor="hybrid_loss", mode="min")
+trainer.train(..., checkpointers=[checkpointer])
+
+# Resume an interrupted run
+start_epoch = checkpointer.load(model, optimizer)
+trainer.train(..., epochs=50, start_epoch=start_epoch)
+
+# Restore the best model (e.g. for export)
+checkpointer.load(model, optimizer, kind="best")
 ```
 
 ## Installation

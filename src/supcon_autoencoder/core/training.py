@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from torch.optim import Optimizer
     from torch.utils.data import DataLoader
 
+    from supcon_autoencoder.core.checkpoints import Checkpointer, CheckpointState
     from supcon_autoencoder.core.loss import HybridLossItem
 
     from .data import Sample
@@ -197,13 +198,15 @@ class Trainer:
             hybrid_loss=total_hybrid_loss / total_samples,
         )
 
-    def train(
+    def train(  # noqa: PLR0913, PLR0917
         self,
         train_loader: DataLoader[Sample],
         device: torch.device,
         epochs: int,
         val_loader: DataLoader[Sample] | None = None,
         experiment_trackers: list[ExperimentTracker] | None = None,
+        checkpointers: list[Checkpointer] | None = None,
+        start_epoch: int = 0,
     ) -> None:
         """Run training loop.
 
@@ -213,9 +216,14 @@ class Trainer:
             device: Device to load data onto.
             epochs: Number of epochs to train for.
             experiment_trackers: List of experiment trackers to log metrics to.
+            checkpointers: List of checkpointers to save training state with
+                at the end of each epoch.
+            start_epoch: Epoch to start from, e.g. when resuming from a
+                checkpoint.
         """
         experiment_trackers = experiment_trackers or []
-        for epoch in range(epochs):
+        checkpointers = checkpointers or []
+        for epoch in range(start_epoch, epochs):
             train_metrics = self._train_epoch(train_loader, device)
             for tracker in experiment_trackers:
                 tracker.log_metrics(
@@ -228,3 +236,12 @@ class Trainer:
                     tracker.log_metrics(
                         phase=Phase.VAL, step=epoch + 1, metrics=val_loss._asdict()
                     )
+            if checkpointers:
+                state: CheckpointState = {
+                    "epoch": epoch + 1,
+                    "model": self.model.state_dict(),
+                    "optimizer": self.optimizer.state_dict(),
+                    "val_metrics": val_loss._asdict() if val_loss is not None else None,
+                }
+                for checkpointer in checkpointers:
+                    checkpointer.save(state)

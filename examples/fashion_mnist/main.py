@@ -11,6 +11,7 @@ import torch
 from dec_torch.autoencoder import AutoEncoder, AutoEncoderConfig
 from torch import nn
 
+from supcon_autoencoder.core.checkpoints import LocalCheckpointer
 from supcon_autoencoder.core.loss import HybridLoss, SupConLoss
 from supcon_autoencoder.core.trackers import MLflowTracker, StandardLoggingTracker
 from supcon_autoencoder.core.training import Trainer
@@ -20,6 +21,9 @@ from .dataset import create_dataloader
 
 # Data parameters
 BATCH_SIZE = 256
+
+# Checkpoint parameters
+CHECKPOINT_DIR = "checkpoints/fashion_mnist"
 
 # Model parameters
 INPUT_DIM = 784  # 28x28 flattened
@@ -150,6 +154,7 @@ def train() -> nn.Module:
             epochs=EPOCHS,
             val_loader=val_loader,
             experiment_trackers=[logging_tracker, mlflow_tracker],
+            checkpointers=[LocalCheckpointer(CHECKPOINT_DIR)],
         )
 
     return model

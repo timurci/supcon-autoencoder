@@ -33,6 +33,14 @@ class TorchModule(Protocol):
         """Return state dict."""
         ...
 
+    def load_state_dict(self, state_dict: dict[str, Tensor]) -> object:
+        """Load state dict.
+
+        Args:
+            state_dict: State dictionary to load.
+        """
+        ...
+
 
 class AugmentationResult(TypedDict):
     """Result of augmentation.
